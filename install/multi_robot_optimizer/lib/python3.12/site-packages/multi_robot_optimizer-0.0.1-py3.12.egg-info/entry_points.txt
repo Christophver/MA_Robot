@@ -1,0 +1,2 @@
+[console_scripts]
+optimizer_node = multi_robot_optimizer.optimizer_node:main

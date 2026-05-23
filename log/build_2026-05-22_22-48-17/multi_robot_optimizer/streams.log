@@ -1,0 +1,43 @@
+[2.871s] Invoking command in '/home/vboxuser/map_ws/src/multi_robot_optimizer': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/vboxuser/map_ws/build/multi_robot_optimizer/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/multi_robot_optimizer build --build-base /home/vboxuser/map_ws/build/multi_robot_optimizer/build install --record /home/vboxuser/map_ws/build/multi_robot_optimizer/install.log --single-version-externally-managed install_data
+[3.747s] running egg_info
+[3.747s] creating ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info
+[3.809s] writing ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/PKG-INFO
+[3.823s] writing dependency_links to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/dependency_links.txt
+[3.823s] writing entry points to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/entry_points.txt
+[3.823s] writing requirements to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/requires.txt
+[3.824s] writing top-level names to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/top_level.txt
+[3.824s] writing manifest file '../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/SOURCES.txt'
+[3.941s] reading manifest file '../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/SOURCES.txt'
+[3.942s] writing manifest file '../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/SOURCES.txt'
+[3.942s] running build
+[3.942s] running build_py
+[3.942s] creating /home/vboxuser/map_ws/build/multi_robot_optimizer/build
+[3.942s] creating /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib
+[3.943s] creating /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer
+[3.943s] copying multi_robot_optimizer/__init__.py -> /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer
+[3.962s] copying multi_robot_optimizer/pso_algorithm.py -> /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer
+[3.962s] copying multi_robot_optimizer/optimizer_node.py -> /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer
+[3.962s] running install
+[3.962s] running install_lib
+[4.041s] creating /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer
+[4.042s] copying /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer/__init__.py -> /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer
+[4.042s] copying /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer/pso_algorithm.py -> /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer
+[4.042s] copying /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer/optimizer_node.py -> /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer
+[4.054s] byte-compiling /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer/__init__.py to __init__.cpython-312.pyc
+[4.054s] byte-compiling /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer/pso_algorithm.py to pso_algorithm.cpython-312.pyc
+[4.054s] byte-compiling /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer/optimizer_node.py to optimizer_node.cpython-312.pyc
+[4.055s] running install_data
+[4.055s] creating /home/vboxuser/map_ws/install/multi_robot_optimizer/share/ament_index
+[4.055s] creating /home/vboxuser/map_ws/install/multi_robot_optimizer/share/ament_index/resource_index
+[4.055s] creating /home/vboxuser/map_ws/install/multi_robot_optimizer/share/ament_index/resource_index/packages
+[4.055s] copying resource/multi_robot_optimizer -> /home/vboxuser/map_ws/install/multi_robot_optimizer/share/ament_index/resource_index/packages
+[4.055s] copying package.xml -> /home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer
+[4.055s] creating /home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/config
+[4.056s] creating /home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/launch
+[4.056s] copying launch/optimizer.launch.py -> /home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/launch
+[4.056s] running install_egg_info
+[4.111s] Copying ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info to /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer-0.0.1-py3.12.egg-info
+[4.111s] running install_scripts
+[4.597s] Installing optimizer_node script to /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/multi_robot_optimizer
+[4.598s] writing list of installed files to '/home/vboxuser/map_ws/build/multi_robot_optimizer/install.log'
+[4.771s] Invoked command in '/home/vboxuser/map_ws/src/multi_robot_optimizer' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/vboxuser/map_ws/build/multi_robot_optimizer/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/multi_robot_optimizer build --build-base /home/vboxuser/map_ws/build/multi_robot_optimizer/build install --record /home/vboxuser/map_ws/build/multi_robot_optimizer/install.log --single-version-externally-managed install_data

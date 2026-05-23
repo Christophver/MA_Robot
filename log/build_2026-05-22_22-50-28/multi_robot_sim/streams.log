@@ -1,0 +1,28 @@
+[1.042s] Invoking command in '/home/vboxuser/map_ws/build/multi_robot_sim': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/vboxuser/map_ws/install/multi_robot_optimizer:/home/vboxuser/map_ws/install/mein_erstes_paket:/home/vboxuser/ros2_ws/install/my_py_pkg:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/vboxuser/map_ws/build/multi_robot_sim -- -j4 -l4
+[1.164s] Invoked command in '/home/vboxuser/map_ws/build/multi_robot_sim' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/vboxuser/map_ws/install/multi_robot_optimizer:/home/vboxuser/map_ws/install/mein_erstes_paket:/home/vboxuser/ros2_ws/install/my_py_pkg:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/vboxuser/map_ws/build/multi_robot_sim -- -j4 -l4
+[1.205s] Invoking command in '/home/vboxuser/map_ws/build/multi_robot_sim': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/vboxuser/map_ws/install/multi_robot_optimizer:/home/vboxuser/map_ws/install/mein_erstes_paket:/home/vboxuser/ros2_ws/install/my_py_pkg:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/vboxuser/map_ws/build/multi_robot_sim
+[1.242s] -- Install configuration: ""
+[1.242s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/launch
+[1.242s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/launch/sim.launch.py
+[1.242s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/worlds
+[1.242s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/worlds/room.sdf
+[1.243s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/worlds/empty_room.world
+[1.243s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/urdf
+[1.243s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/urdf/mobile_robot.urdf.xacro
+[1.248s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/rviz
+[1.248s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/ament_index/resource_index/package_run_dependencies/multi_robot_sim
+[1.248s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/ament_index/resource_index/parent_prefix_path/multi_robot_sim
+[1.248s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/environment/ament_prefix_path.sh
+[1.248s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/environment/ament_prefix_path.dsv
+[1.249s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/environment/path.sh
+[1.249s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/environment/path.dsv
+[1.249s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/local_setup.bash
+[1.249s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/local_setup.sh
+[1.249s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/local_setup.zsh
+[1.249s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/local_setup.dsv
+[1.249s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/package.dsv
+[1.249s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/ament_index/resource_index/packages/multi_robot_sim
+[1.249s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/cmake/multi_robot_simConfig.cmake
+[1.249s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/cmake/multi_robot_simConfig-version.cmake
+[1.249s] -- Up-to-date: /home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/package.xml
+[1.256s] Invoked command in '/home/vboxuser/map_ws/build/multi_robot_sim' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/vboxuser/map_ws/install/multi_robot_optimizer:/home/vboxuser/map_ws/install/mein_erstes_paket:/home/vboxuser/ros2_ws/install/my_py_pkg:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/vboxuser/map_ws/build/multi_robot_sim

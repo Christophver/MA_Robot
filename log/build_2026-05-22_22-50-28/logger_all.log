@@ -1,0 +1,240 @@
+[0.210s] DEBUG:colcon:Command line arguments: ['/usr/bin/colcon', 'build']
+[0.210s] DEBUG:colcon:Parsed command line arguments: Namespace(log_base=None, log_level=None, verb_name='build', build_base='build', install_base='install', merge_install=False, symlink_install=False, test_result_base=None, continue_on_error=False, executor='parallel', parallel_workers=4, event_handlers=None, ignore_user_meta=False, metas=['./colcon.meta'], base_paths=['.'], packages_ignore=None, packages_ignore_regex=None, paths=None, packages_up_to=None, packages_up_to_regex=None, packages_above=None, packages_above_and_dependencies=None, packages_above_depth=None, packages_select_by_dep=None, packages_skip_by_dep=None, packages_skip_up_to=None, packages_select_build_failed=False, packages_skip_build_finished=False, packages_select_test_failures=False, packages_skip_test_passed=False, packages_select=None, packages_skip=None, packages_select_regex=None, packages_skip_regex=None, packages_start=None, packages_end=None, allow_overriding=[], cmake_args=None, cmake_target=None, cmake_target_skip_unavailable=False, cmake_clean_cache=False, cmake_clean_first=False, cmake_force_configure=False, ament_cmake_args=None, catkin_cmake_args=None, catkin_skip_building_tests=False, mixin_files=None, mixin=None, verb_parser=<colcon_mixin.mixin.mixin_argument.MixinArgumentDecorator object at 0x77ed614a4050>, verb_extension=<colcon_core.verb.build.BuildVerb object at 0x77ed61487d70>, main=<bound method BuildVerb.main of <colcon_core.verb.build.BuildVerb object at 0x77ed61487d70>>, mixin_verb=('build',))
+[0.267s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) check parameters
+[0.271s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) check parameters
+[0.271s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) check parameters
+[0.271s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) check parameters
+[0.271s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) discover
+[0.271s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) discover
+[0.271s] INFO:colcon.colcon_core.package_discovery:Crawling recursively for packages in '/home/vboxuser/map_ws'
+[0.272s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ignore', 'ignore_ament_install']
+[0.272s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore'
+[0.272s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore_ament_install'
+[0.272s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_pkg']
+[0.272s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_pkg'
+[0.273s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_meta']
+[0.273s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_meta'
+[0.273s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ros']
+[0.273s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ros'
+[0.302s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['cmake', 'python']
+[0.303s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'cmake'
+[0.303s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python'
+[0.304s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['python_setup_py']
+[0.304s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python_setup_py'
+[0.304s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extensions ['ignore', 'ignore_ament_install']
+[0.305s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extension 'ignore'
+[0.305s] Level 1:colcon.colcon_core.package_identification:_identify(build) ignored
+[0.305s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extensions ['ignore', 'ignore_ament_install']
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extension 'ignore'
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(install) ignored
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extensions ['ignore', 'ignore_ament_install']
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extension 'ignore'
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(log) ignored
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ignore', 'ignore_ament_install']
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore'
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore_ament_install'
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_pkg']
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_pkg'
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_meta']
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_meta'
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ros']
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ros'
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['cmake', 'python']
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'cmake'
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python'
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['python_setup_py']
+[0.306s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python_setup_py'
+[0.307s] Level 1:colcon.colcon_core.package_identification:_identify(src/mein_erstes_paket) by extensions ['ignore', 'ignore_ament_install']
+[0.307s] Level 1:colcon.colcon_core.package_identification:_identify(src/mein_erstes_paket) by extension 'ignore'
+[0.307s] Level 1:colcon.colcon_core.package_identification:_identify(src/mein_erstes_paket) by extension 'ignore_ament_install'
+[0.307s] Level 1:colcon.colcon_core.package_identification:_identify(src/mein_erstes_paket) by extensions ['colcon_pkg']
+[0.307s] Level 1:colcon.colcon_core.package_identification:_identify(src/mein_erstes_paket) by extension 'colcon_pkg'
+[0.307s] Level 1:colcon.colcon_core.package_identification:_identify(src/mein_erstes_paket) by extensions ['colcon_meta']
+[0.307s] Level 1:colcon.colcon_core.package_identification:_identify(src/mein_erstes_paket) by extension 'colcon_meta'
+[0.307s] Level 1:colcon.colcon_core.package_identification:_identify(src/mein_erstes_paket) by extensions ['ros']
+[0.307s] Level 1:colcon.colcon_core.package_identification:_identify(src/mein_erstes_paket) by extension 'ros'
+[0.310s] DEBUG:colcon.colcon_core.package_identification:Package 'src/mein_erstes_paket' with type 'ros.ament_python' and name 'mein_erstes_paket'
+[0.310s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_optimizer) by extensions ['ignore', 'ignore_ament_install']
+[0.310s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_optimizer) by extension 'ignore'
+[0.310s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_optimizer) by extension 'ignore_ament_install'
+[0.311s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_optimizer) by extensions ['colcon_pkg']
+[0.311s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_optimizer) by extension 'colcon_pkg'
+[0.311s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_optimizer) by extensions ['colcon_meta']
+[0.311s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_optimizer) by extension 'colcon_meta'
+[0.311s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_optimizer) by extensions ['ros']
+[0.311s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_optimizer) by extension 'ros'
+[0.312s] DEBUG:colcon.colcon_core.package_identification:Package 'src/multi_robot_optimizer' with type 'ros.ament_python' and name 'multi_robot_optimizer'
+[0.312s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_sim) by extensions ['ignore', 'ignore_ament_install']
+[0.312s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_sim) by extension 'ignore'
+[0.312s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_sim) by extension 'ignore_ament_install'
+[0.312s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_sim) by extensions ['colcon_pkg']
+[0.312s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_sim) by extension 'colcon_pkg'
+[0.312s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_sim) by extensions ['colcon_meta']
+[0.312s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_sim) by extension 'colcon_meta'
+[0.312s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_sim) by extensions ['ros']
+[0.313s] Level 1:colcon.colcon_core.package_identification:_identify(src/multi_robot_sim) by extension 'ros'
+[0.313s] DEBUG:colcon.colcon_core.package_identification:Package 'src/multi_robot_sim' with type 'ros.ament_cmake' and name 'multi_robot_sim'
+[0.314s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) using defaults
+[0.314s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) discover
+[0.314s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) using defaults
+[0.314s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) discover
+[0.314s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) using defaults
+[0.341s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) check parameters
+[0.341s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) discover
+[0.349s] DEBUG:colcon.colcon_installed_package_information.package_discovery:Found 3 installed packages in /home/vboxuser/map_ws/install
+[0.350s] DEBUG:colcon.colcon_installed_package_information.package_discovery:Found 2 installed packages in /home/vboxuser/ros2_ws/install
+[0.352s] DEBUG:colcon.colcon_installed_package_information.package_discovery:Found 318 installed packages in /opt/ros/jazzy
+[0.353s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) using defaults
+[0.403s] Level 5:colcon.colcon_core.verb:set package 'mein_erstes_paket' build argument 'cmake_args' from command line to 'None'
+[0.405s] Level 5:colcon.colcon_core.verb:set package 'mein_erstes_paket' build argument 'cmake_target' from command line to 'None'
+[0.406s] Level 5:colcon.colcon_core.verb:set package 'mein_erstes_paket' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.406s] Level 5:colcon.colcon_core.verb:set package 'mein_erstes_paket' build argument 'cmake_clean_cache' from command line to 'False'
+[0.406s] Level 5:colcon.colcon_core.verb:set package 'mein_erstes_paket' build argument 'cmake_clean_first' from command line to 'False'
+[0.406s] Level 5:colcon.colcon_core.verb:set package 'mein_erstes_paket' build argument 'cmake_force_configure' from command line to 'False'
+[0.406s] Level 5:colcon.colcon_core.verb:set package 'mein_erstes_paket' build argument 'ament_cmake_args' from command line to 'None'
+[0.406s] Level 5:colcon.colcon_core.verb:set package 'mein_erstes_paket' build argument 'catkin_cmake_args' from command line to 'None'
+[0.406s] Level 5:colcon.colcon_core.verb:set package 'mein_erstes_paket' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.406s] DEBUG:colcon.colcon_core.verb:Building package 'mein_erstes_paket' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/vboxuser/map_ws/build/mein_erstes_paket', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/vboxuser/map_ws/install/mein_erstes_paket', 'merge_install': False, 'path': '/home/vboxuser/map_ws/src/mein_erstes_paket', 'symlink_install': False, 'test_result_base': None}
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_optimizer' build argument 'cmake_args' from command line to 'None'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_optimizer' build argument 'cmake_target' from command line to 'None'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_optimizer' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_optimizer' build argument 'cmake_clean_cache' from command line to 'False'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_optimizer' build argument 'cmake_clean_first' from command line to 'False'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_optimizer' build argument 'cmake_force_configure' from command line to 'False'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_optimizer' build argument 'ament_cmake_args' from command line to 'None'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_optimizer' build argument 'catkin_cmake_args' from command line to 'None'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_optimizer' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.407s] DEBUG:colcon.colcon_core.verb:Building package 'multi_robot_optimizer' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/vboxuser/map_ws/build/multi_robot_optimizer', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/vboxuser/map_ws/install/multi_robot_optimizer', 'merge_install': False, 'path': '/home/vboxuser/map_ws/src/multi_robot_optimizer', 'symlink_install': False, 'test_result_base': None}
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_sim' build argument 'cmake_args' from command line to 'None'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_sim' build argument 'cmake_target' from command line to 'None'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_sim' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_sim' build argument 'cmake_clean_cache' from command line to 'False'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_sim' build argument 'cmake_clean_first' from command line to 'False'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_sim' build argument 'cmake_force_configure' from command line to 'False'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_sim' build argument 'ament_cmake_args' from command line to 'None'
+[0.407s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_sim' build argument 'catkin_cmake_args' from command line to 'None'
+[0.408s] Level 5:colcon.colcon_core.verb:set package 'multi_robot_sim' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.408s] DEBUG:colcon.colcon_core.verb:Building package 'multi_robot_sim' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/vboxuser/map_ws/build/multi_robot_sim', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/vboxuser/map_ws/install/multi_robot_sim', 'merge_install': False, 'path': '/home/vboxuser/map_ws/src/multi_robot_sim', 'symlink_install': False, 'test_result_base': None}
+[0.408s] INFO:colcon.colcon_core.executor:Executing jobs using 'parallel' executor
+[0.417s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete
+[0.418s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/home/vboxuser/map_ws/src/mein_erstes_paket' with build type 'ament_python'
+[0.418s] Level 1:colcon.colcon_core.shell:create_environment_hook('mein_erstes_paket', 'ament_prefix_path')
+[0.440s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_core.shell.bat': Not used on non-Windows systems
+[0.440s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/vboxuser/map_ws/install/mein_erstes_paket/share/mein_erstes_paket/hook/ament_prefix_path.ps1'
+[0.442s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/vboxuser/map_ws/install/mein_erstes_paket/share/mein_erstes_paket/hook/ament_prefix_path.dsv'
+[0.444s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/vboxuser/map_ws/install/mein_erstes_paket/share/mein_erstes_paket/hook/ament_prefix_path.sh'
+[0.447s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.447s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.469s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/home/vboxuser/map_ws/src/multi_robot_optimizer' with build type 'ament_python'
+[0.470s] Level 1:colcon.colcon_core.shell:create_environment_hook('multi_robot_optimizer', 'ament_prefix_path')
+[0.472s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/hook/ament_prefix_path.ps1'
+[0.479s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/hook/ament_prefix_path.dsv'
+[0.482s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/hook/ament_prefix_path.sh'
+[0.484s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.484s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.493s] INFO:colcon.colcon_ros.task.ament_cmake.build:Building ROS package in '/home/vboxuser/map_ws/src/multi_robot_sim' with build type 'ament_cmake'
+[0.493s] INFO:colcon.colcon_cmake.task.cmake.build:Building CMake package in '/home/vboxuser/map_ws/src/multi_robot_sim'
+[0.493s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.493s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.027s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/home/vboxuser/map_ws/src/mein_erstes_paket'
+[1.028s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.028s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.497s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/home/vboxuser/map_ws/src/multi_robot_optimizer'
+[1.504s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.505s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.536s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/vboxuser/map_ws/build/multi_robot_sim': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/vboxuser/map_ws/install/multi_robot_optimizer:/home/vboxuser/map_ws/install/mein_erstes_paket:/home/vboxuser/ros2_ws/install/my_py_pkg:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/vboxuser/map_ws/build/multi_robot_sim -- -j4 -l4
+[1.658s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/vboxuser/map_ws/build/multi_robot_sim' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/vboxuser/map_ws/install/multi_robot_optimizer:/home/vboxuser/map_ws/install/mein_erstes_paket:/home/vboxuser/ros2_ws/install/my_py_pkg:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/vboxuser/map_ws/build/multi_robot_sim -- -j4 -l4
+[1.699s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/vboxuser/map_ws/build/multi_robot_sim': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/vboxuser/map_ws/install/multi_robot_optimizer:/home/vboxuser/map_ws/install/mein_erstes_paket:/home/vboxuser/ros2_ws/install/my_py_pkg:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/vboxuser/map_ws/build/multi_robot_sim
+[1.745s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(multi_robot_sim)
+[1.747s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_sim' for CMake module files
+[1.747s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_sim' for CMake config files
+[1.748s] Level 1:colcon.colcon_core.shell:create_environment_hook('multi_robot_sim', 'cmake_prefix_path')
+[1.748s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/hook/cmake_prefix_path.ps1'
+[1.750s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/vboxuser/map_ws/build/multi_robot_sim' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/vboxuser/map_ws/install/multi_robot_optimizer:/home/vboxuser/map_ws/install/mein_erstes_paket:/home/vboxuser/ros2_ws/install/my_py_pkg:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/vboxuser/map_ws/build/multi_robot_sim
+[1.751s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/hook/cmake_prefix_path.dsv'
+[1.752s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/hook/cmake_prefix_path.sh'
+[1.754s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_sim/bin'
+[1.754s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_sim/lib/pkgconfig/multi_robot_sim.pc'
+[1.757s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_sim/lib/python3.12/site-packages'
+[1.757s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_sim/bin'
+[1.757s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/package.ps1'
+[1.759s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/package.dsv'
+[1.762s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/package.sh'
+[1.768s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/package.bash'
+[1.770s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/package.zsh'
+[1.776s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/vboxuser/map_ws/install/multi_robot_sim/share/colcon-core/packages/multi_robot_sim)
+[1.778s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(multi_robot_sim)
+[1.780s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_sim' for CMake module files
+[1.781s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_sim' for CMake config files
+[1.783s] Level 1:colcon.colcon_core.shell:create_environment_hook('multi_robot_sim', 'cmake_prefix_path')
+[1.783s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/hook/cmake_prefix_path.ps1'
+[1.785s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/hook/cmake_prefix_path.dsv'
+[1.786s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/hook/cmake_prefix_path.sh'
+[1.787s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_sim/bin'
+[1.788s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_sim/lib/pkgconfig/multi_robot_sim.pc'
+[1.792s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_sim/lib/python3.12/site-packages'
+[1.792s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_sim/bin'
+[1.793s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/package.ps1'
+[1.793s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/package.dsv'
+[1.794s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/package.sh'
+[1.795s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/package.bash'
+[1.797s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/multi_robot_sim/share/multi_robot_sim/package.zsh'
+[1.799s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/vboxuser/map_ws/install/multi_robot_sim/share/colcon-core/packages/multi_robot_sim)
+[2.817s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/vboxuser/map_ws/src/multi_robot_optimizer': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/vboxuser/map_ws/build/multi_robot_optimizer/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/multi_robot_optimizer build --build-base /home/vboxuser/map_ws/build/multi_robot_optimizer/build install --record /home/vboxuser/map_ws/build/multi_robot_optimizer/install.log --single-version-externally-managed install_data
+[2.912s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/vboxuser/map_ws/src/mein_erstes_paket': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/vboxuser/map_ws/build/mein_erstes_paket/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/vboxuser/map_ws/install/mein_erstes_paket/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/mein_erstes_paket build --build-base /home/vboxuser/map_ws/build/mein_erstes_paket/build install --record /home/vboxuser/map_ws/build/mein_erstes_paket/install.log --single-version-externally-managed install_data
+[3.885s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_optimizer' for CMake module files
+[3.887s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/vboxuser/map_ws/src/multi_robot_optimizer' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/vboxuser/map_ws/build/multi_robot_optimizer/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/multi_robot_optimizer build --build-base /home/vboxuser/map_ws/build/multi_robot_optimizer/build install --record /home/vboxuser/map_ws/build/multi_robot_optimizer/install.log --single-version-externally-managed install_data
+[3.887s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_optimizer' for CMake config files
+[3.888s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_optimizer/lib'
+[3.888s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_optimizer/bin'
+[3.888s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_optimizer/lib/pkgconfig/multi_robot_optimizer.pc'
+[3.889s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages'
+[3.889s] Level 1:colcon.colcon_core.shell:create_environment_hook('multi_robot_optimizer', 'pythonpath')
+[3.890s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/hook/pythonpath.ps1'
+[3.891s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/hook/pythonpath.dsv'
+[3.892s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/hook/pythonpath.sh'
+[3.899s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/multi_robot_optimizer/bin'
+[3.899s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(multi_robot_optimizer)
+[3.899s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/package.ps1'
+[3.900s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/package.dsv'
+[3.901s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/package.sh'
+[3.903s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/package.bash'
+[3.907s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/package.zsh'
+[3.907s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/vboxuser/map_ws/install/multi_robot_optimizer/share/colcon-core/packages/multi_robot_optimizer)
+[4.055s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/mein_erstes_paket' for CMake module files
+[4.056s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/vboxuser/map_ws/src/mein_erstes_paket' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/vboxuser/map_ws/build/mein_erstes_paket/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/vboxuser/map_ws/install/mein_erstes_paket/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/mein_erstes_paket build --build-base /home/vboxuser/map_ws/build/mein_erstes_paket/build install --record /home/vboxuser/map_ws/build/mein_erstes_paket/install.log --single-version-externally-managed install_data
+[4.068s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/mein_erstes_paket' for CMake config files
+[4.072s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/mein_erstes_paket/lib'
+[4.072s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/mein_erstes_paket/bin'
+[4.072s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/mein_erstes_paket/lib/pkgconfig/mein_erstes_paket.pc'
+[4.073s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/mein_erstes_paket/lib/python3.12/site-packages'
+[4.073s] Level 1:colcon.colcon_core.shell:create_environment_hook('mein_erstes_paket', 'pythonpath')
+[4.073s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/vboxuser/map_ws/install/mein_erstes_paket/share/mein_erstes_paket/hook/pythonpath.ps1'
+[4.074s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/vboxuser/map_ws/install/mein_erstes_paket/share/mein_erstes_paket/hook/pythonpath.dsv'
+[4.083s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/vboxuser/map_ws/install/mein_erstes_paket/share/mein_erstes_paket/hook/pythonpath.sh'
+[4.085s] Level 1:colcon.colcon_core.environment:checking '/home/vboxuser/map_ws/install/mein_erstes_paket/bin'
+[4.085s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(mein_erstes_paket)
+[4.086s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/mein_erstes_paket/share/mein_erstes_paket/package.ps1'
+[4.087s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/vboxuser/map_ws/install/mein_erstes_paket/share/mein_erstes_paket/package.dsv'
+[4.088s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/mein_erstes_paket/share/mein_erstes_paket/package.sh'
+[4.090s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/mein_erstes_paket/share/mein_erstes_paket/package.bash'
+[4.091s] INFO:colcon.colcon_core.shell:Creating package script '/home/vboxuser/map_ws/install/mein_erstes_paket/share/mein_erstes_paket/package.zsh'
+[4.092s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/vboxuser/map_ws/install/mein_erstes_paket/share/colcon-core/packages/mein_erstes_paket)
+[4.093s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:closing loop
+[4.102s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:loop closed
+[4.103s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete finished with '0'
+[4.103s] DEBUG:colcon.colcon_core.event_reactor:joining thread
+[4.121s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.terminal_notifier': Not used on non-Darwin systems
+[4.121s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.win32': Not used on non-Windows systems
+[4.121s] INFO:colcon.colcon_notification.desktop_notification:Sending desktop notification using 'notify2'
+[4.175s] DEBUG:colcon.colcon_core.event_reactor:joined thread
+[4.177s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/vboxuser/map_ws/install/local_setup.ps1'
+[4.178s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/vboxuser/map_ws/install/_local_setup_util_ps1.py'
+[4.180s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/vboxuser/map_ws/install/setup.ps1'
+[4.183s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/vboxuser/map_ws/install/local_setup.sh'
+[4.188s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/vboxuser/map_ws/install/_local_setup_util_sh.py'
+[4.191s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/vboxuser/map_ws/install/setup.sh'
+[4.193s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/vboxuser/map_ws/install/local_setup.bash'
+[4.195s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/vboxuser/map_ws/install/setup.bash'
+[4.199s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/vboxuser/map_ws/install/local_setup.zsh'
+[4.200s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/vboxuser/map_ws/install/setup.zsh'
