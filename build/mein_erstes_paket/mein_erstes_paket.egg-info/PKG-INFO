@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: mein-erstes-paket
+Version: 0.0.0
+Summary: TODO: Package description
+Maintainer: vboxuser
+Maintainer-email: vboxuser@todo.todo
+License: TODO: License declaration
+Provides-Extra: test

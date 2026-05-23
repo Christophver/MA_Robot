@@ -1,0 +1,41 @@
+running egg_info
+creating ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info
+writing ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/PKG-INFO
+writing dependency_links to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/dependency_links.txt
+writing entry points to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/entry_points.txt
+writing requirements to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/requires.txt
+writing top-level names to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/top_level.txt
+writing manifest file '../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/SOURCES.txt'
+reading manifest file '../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/SOURCES.txt'
+writing manifest file '../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/vboxuser/map_ws/build/multi_robot_optimizer/build
+creating /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib
+creating /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer
+copying multi_robot_optimizer/__init__.py -> /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer
+copying multi_robot_optimizer/pso_algorithm.py -> /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer
+copying multi_robot_optimizer/optimizer_node.py -> /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer
+running install
+running install_lib
+creating /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer
+copying /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer/__init__.py -> /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer
+copying /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer/pso_algorithm.py -> /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer
+copying /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer/optimizer_node.py -> /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer
+byte-compiling /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer/__init__.py to __init__.cpython-312.pyc
+byte-compiling /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer/pso_algorithm.py to pso_algorithm.cpython-312.pyc
+byte-compiling /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer/optimizer_node.py to optimizer_node.cpython-312.pyc
+running install_data
+creating /home/vboxuser/map_ws/install/multi_robot_optimizer/share/ament_index
+creating /home/vboxuser/map_ws/install/multi_robot_optimizer/share/ament_index/resource_index
+creating /home/vboxuser/map_ws/install/multi_robot_optimizer/share/ament_index/resource_index/packages
+copying resource/multi_robot_optimizer -> /home/vboxuser/map_ws/install/multi_robot_optimizer/share/ament_index/resource_index/packages
+copying package.xml -> /home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer
+creating /home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/config
+creating /home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/launch
+copying launch/optimizer.launch.py -> /home/vboxuser/map_ws/install/multi_robot_optimizer/share/multi_robot_optimizer/launch
+running install_egg_info
+Copying ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info to /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer-0.0.1-py3.12.egg-info
+running install_scripts
+Installing optimizer_node script to /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/multi_robot_optimizer
+writing list of installed files to '/home/vboxuser/map_ws/build/multi_robot_optimizer/install.log'

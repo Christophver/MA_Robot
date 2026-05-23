@@ -1,0 +1,19 @@
+[2.493s] Invoking command in '/home/vboxuser/map_ws/src/mein_erstes_paket': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/vboxuser/map_ws/build/mein_erstes_paket/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/vboxuser/map_ws/install/mein_erstes_paket/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/mein_erstes_paket build --build-base /home/vboxuser/map_ws/build/mein_erstes_paket/build install --record /home/vboxuser/map_ws/build/mein_erstes_paket/install.log --single-version-externally-managed install_data
+[2.947s] running egg_info
+[3.004s] writing ../../build/mein_erstes_paket/mein_erstes_paket.egg-info/PKG-INFO
+[3.005s] writing dependency_links to ../../build/mein_erstes_paket/mein_erstes_paket.egg-info/dependency_links.txt
+[3.006s] writing requirements to ../../build/mein_erstes_paket/mein_erstes_paket.egg-info/requires.txt
+[3.007s] writing top-level names to ../../build/mein_erstes_paket/mein_erstes_paket.egg-info/top_level.txt
+[3.111s] reading manifest file '../../build/mein_erstes_paket/mein_erstes_paket.egg-info/SOURCES.txt'
+[3.113s] writing manifest file '../../build/mein_erstes_paket/mein_erstes_paket.egg-info/SOURCES.txt'
+[3.114s] running build
+[3.115s] running build_py
+[3.115s] running install
+[3.131s] running install_lib
+[3.176s] running install_data
+[3.178s] running install_egg_info
+[3.219s] removing '/home/vboxuser/map_ws/install/mein_erstes_paket/lib/python3.12/site-packages/mein_erstes_paket-0.0.0-py3.12.egg-info' (and everything under it)
+[3.220s] Copying ../../build/mein_erstes_paket/mein_erstes_paket.egg-info to /home/vboxuser/map_ws/install/mein_erstes_paket/lib/python3.12/site-packages/mein_erstes_paket-0.0.0-py3.12.egg-info
+[3.221s] running install_scripts
+[3.512s] writing list of installed files to '/home/vboxuser/map_ws/build/mein_erstes_paket/install.log'
+[3.637s] Invoked command in '/home/vboxuser/map_ws/src/mein_erstes_paket' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/vboxuser/map_ws/build/mein_erstes_paket/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/vboxuser/map_ws/install/mein_erstes_paket/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/mein_erstes_paket build --build-base /home/vboxuser/map_ws/build/mein_erstes_paket/build install --record /home/vboxuser/map_ws/build/mein_erstes_paket/install.log --single-version-externally-managed install_data

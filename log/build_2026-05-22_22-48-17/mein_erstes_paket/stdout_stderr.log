@@ -1,0 +1,30 @@
+running egg_info
+creating ../../build/mein_erstes_paket/mein_erstes_paket.egg-info
+writing ../../build/mein_erstes_paket/mein_erstes_paket.egg-info/PKG-INFO
+writing dependency_links to ../../build/mein_erstes_paket/mein_erstes_paket.egg-info/dependency_links.txt
+writing requirements to ../../build/mein_erstes_paket/mein_erstes_paket.egg-info/requires.txt
+writing top-level names to ../../build/mein_erstes_paket/mein_erstes_paket.egg-info/top_level.txt
+writing manifest file '../../build/mein_erstes_paket/mein_erstes_paket.egg-info/SOURCES.txt'
+reading manifest file '../../build/mein_erstes_paket/mein_erstes_paket.egg-info/SOURCES.txt'
+writing manifest file '../../build/mein_erstes_paket/mein_erstes_paket.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/vboxuser/map_ws/build/mein_erstes_paket/build
+creating /home/vboxuser/map_ws/build/mein_erstes_paket/build/lib
+creating /home/vboxuser/map_ws/build/mein_erstes_paket/build/lib/mein_erstes_paket
+copying mein_erstes_paket/__init__.py -> /home/vboxuser/map_ws/build/mein_erstes_paket/build/lib/mein_erstes_paket
+running install
+running install_lib
+creating /home/vboxuser/map_ws/install/mein_erstes_paket/lib/python3.12/site-packages/mein_erstes_paket
+copying /home/vboxuser/map_ws/build/mein_erstes_paket/build/lib/mein_erstes_paket/__init__.py -> /home/vboxuser/map_ws/install/mein_erstes_paket/lib/python3.12/site-packages/mein_erstes_paket
+byte-compiling /home/vboxuser/map_ws/install/mein_erstes_paket/lib/python3.12/site-packages/mein_erstes_paket/__init__.py to __init__.cpython-312.pyc
+running install_data
+creating /home/vboxuser/map_ws/install/mein_erstes_paket/share/ament_index
+creating /home/vboxuser/map_ws/install/mein_erstes_paket/share/ament_index/resource_index
+creating /home/vboxuser/map_ws/install/mein_erstes_paket/share/ament_index/resource_index/packages
+copying resource/mein_erstes_paket -> /home/vboxuser/map_ws/install/mein_erstes_paket/share/ament_index/resource_index/packages
+copying package.xml -> /home/vboxuser/map_ws/install/mein_erstes_paket/share/mein_erstes_paket
+running install_egg_info
+Copying ../../build/mein_erstes_paket/mein_erstes_paket.egg-info to /home/vboxuser/map_ws/install/mein_erstes_paket/lib/python3.12/site-packages/mein_erstes_paket-0.0.0-py3.12.egg-info
+running install_scripts
+writing list of installed files to '/home/vboxuser/map_ws/build/mein_erstes_paket/install.log'

@@ -1,0 +1,22 @@
+running egg_info
+writing ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/PKG-INFO
+writing dependency_links to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/dependency_links.txt
+writing entry points to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/entry_points.txt
+writing requirements to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/requires.txt
+writing top-level names to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/top_level.txt
+reading manifest file '../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/SOURCES.txt'
+writing manifest file '../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/SOURCES.txt'
+running build
+running build_py
+copying multi_robot_optimizer/pso_algorithm.py -> /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer
+running install
+running install_lib
+copying /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer/pso_algorithm.py -> /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer
+byte-compiling /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer/pso_algorithm.py to pso_algorithm.cpython-312.pyc
+running install_data
+running install_egg_info
+removing '/home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer-0.0.1-py3.12.egg-info' (and everything under it)
+Copying ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info to /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer-0.0.1-py3.12.egg-info
+running install_scripts
+Installing optimizer_node script to /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/multi_robot_optimizer
+writing list of installed files to '/home/vboxuser/map_ws/build/multi_robot_optimizer/install.log'

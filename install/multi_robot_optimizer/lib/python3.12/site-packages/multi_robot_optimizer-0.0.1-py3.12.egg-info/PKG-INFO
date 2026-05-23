@@ -1,0 +1,7 @@
+Metadata-Version: 2.1
+Name: multi-robot-optimizer
+Version: 0.0.1
+Summary: PSO Algorithmus für Multi-Roboter Formationen (Masterarbeit)
+Maintainer: Christoph Verhage
+Maintainer-email: student@todo.todo
+License: MIT

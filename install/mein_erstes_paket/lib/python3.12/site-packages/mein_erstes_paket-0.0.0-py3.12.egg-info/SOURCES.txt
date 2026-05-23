@@ -1,0 +1,14 @@
+package.xml
+setup.cfg
+setup.py
+../../build/mein_erstes_paket/mein_erstes_paket.egg-info/PKG-INFO
+../../build/mein_erstes_paket/mein_erstes_paket.egg-info/SOURCES.txt
+../../build/mein_erstes_paket/mein_erstes_paket.egg-info/dependency_links.txt
+../../build/mein_erstes_paket/mein_erstes_paket.egg-info/requires.txt
+../../build/mein_erstes_paket/mein_erstes_paket.egg-info/top_level.txt
+../../build/mein_erstes_paket/mein_erstes_paket.egg-info/zip-safe
+mein_erstes_paket/__init__.py
+resource/mein_erstes_paket
+test/test_copyright.py
+test/test_flake8.py
+test/test_pep257.py

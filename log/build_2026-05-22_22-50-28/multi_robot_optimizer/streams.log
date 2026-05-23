@@ -1,0 +1,24 @@
+[2.347s] Invoking command in '/home/vboxuser/map_ws/src/multi_robot_optimizer': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/vboxuser/map_ws/build/multi_robot_optimizer/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/multi_robot_optimizer build --build-base /home/vboxuser/map_ws/build/multi_robot_optimizer/build install --record /home/vboxuser/map_ws/build/multi_robot_optimizer/install.log --single-version-externally-managed install_data
+[2.695s] running egg_info
+[2.790s] writing ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/PKG-INFO
+[2.793s] writing dependency_links to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/dependency_links.txt
+[2.794s] writing entry points to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/entry_points.txt
+[2.794s] writing requirements to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/requires.txt
+[2.794s] writing top-level names to ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/top_level.txt
+[2.908s] reading manifest file '../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/SOURCES.txt'
+[2.914s] writing manifest file '../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info/SOURCES.txt'
+[2.916s] running build
+[2.916s] running build_py
+[2.916s] copying multi_robot_optimizer/pso_algorithm.py -> /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer
+[2.916s] running install
+[2.928s] running install_lib
+[2.975s] copying /home/vboxuser/map_ws/build/multi_robot_optimizer/build/lib/multi_robot_optimizer/pso_algorithm.py -> /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer
+[2.977s] byte-compiling /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer/pso_algorithm.py to pso_algorithm.cpython-312.pyc
+[2.982s] running install_data
+[2.984s] running install_egg_info
+[3.104s] removing '/home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer-0.0.1-py3.12.egg-info' (and everything under it)
+[3.104s] Copying ../../build/multi_robot_optimizer/multi_robot_optimizer.egg-info to /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages/multi_robot_optimizer-0.0.1-py3.12.egg-info
+[3.105s] running install_scripts
+[3.336s] Installing optimizer_node script to /home/vboxuser/map_ws/install/multi_robot_optimizer/lib/multi_robot_optimizer
+[3.336s] writing list of installed files to '/home/vboxuser/map_ws/build/multi_robot_optimizer/install.log'
+[3.417s] Invoked command in '/home/vboxuser/map_ws/src/multi_robot_optimizer' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/vboxuser/map_ws/build/multi_robot_optimizer/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/vboxuser/map_ws/install/multi_robot_optimizer/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/multi_robot_optimizer build --build-base /home/vboxuser/map_ws/build/multi_robot_optimizer/build install --record /home/vboxuser/map_ws/build/multi_robot_optimizer/install.log --single-version-externally-managed install_data

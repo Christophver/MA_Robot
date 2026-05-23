@@ -1,0 +1,59 @@
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import PoseArray, Pose
+
+class DroneTrajectory(Node):
+    def __init__(self):
+        super().__init__('drone_trajectory_node')
+        # Publisher für unser Drohnen-Topic
+        self.publisher_ = self.create_publisher(PoseArray, '/drone_positions', 10)
+        
+        # Sende alle 1.5 Sekunden einen neuen Wegpunkt
+        self.timer = self.create_timer(1.5, self.timer_callback)
+        
+        # Die Flugbahn in 1-Meter-Schritten um das Hindernis herum
+        self.waypoints = [
+            (2.0, 2.0), (3.0, 2.0), (4.0, 2.0), 
+            (5.0, 2.0), (6.0, 2.0), (7.0, 2.0), 
+            (8.0, 2.0), (8.0, 3.0), (8.0, 4.0), 
+            (8.0, 5.0), (8.0, 6.0), (8.0, 7.0), 
+            (8.0, 8.0)
+        ]
+        self.current_idx = 0
+        self.get_logger().info('Starte autonomen Drohnen-Flug...')
+
+    def timer_callback(self):
+        if self.current_idx >= len(self.waypoints):
+            self.get_logger().info('Ziel erreicht. Beginne von vorn.')
+            self.current_idx = 0
+            
+        x, y = self.waypoints[self.current_idx]
+        
+        msg = PoseArray()
+        msg.header.frame_id = 'map'
+        msg.header.stamp = self.get_clock().now().to_msg()
+        
+        pose = Pose()
+        pose.position.x = float(x)
+        pose.position.y = float(y)
+        pose.position.z = 0.0
+        msg.poses.append(pose)
+        
+        self.publisher_.publish(msg)
+        self.get_logger().info(f'Drohne fliegt zu: X={x}, Y={y}')
+        
+        self.current_idx += 1
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = DroneTrajectory()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+if __name__ == '__main__':
+    main()
