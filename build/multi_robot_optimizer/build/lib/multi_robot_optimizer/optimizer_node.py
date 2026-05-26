@@ -1,11 +1,13 @@
 import rclpy
 from rclpy.node import Node
 import numpy as np
+import math
 from visualization_msgs.msg import Marker, MarkerArray
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 
 from multi_robot_optimizer.pso_algorithm import SwarmOptimizer
+from visualization_msgs.msg import Marker, MarkerArray
 
 class OptimizerNode(Node):
     def __init__(self):
@@ -27,10 +29,15 @@ class OptimizerNode(Node):
         }
         
         self.optimizer = SwarmOptimizer(params)
-        self.marker_pub = self.create_publisher(MarkerArray, '/formation_markers', 10)
-        
-        self.start_robot_poses = [0.0, 0.0, 2.0, 0.0, 0.0, 2.0]
-        self.obstacle_coords = [[5.0, 5.0]] 
+        self.marker_pub = self.create_publisher(MarkerArray, 'formation_markers', 10)
+        self.obstacle_pub = self.create_publisher(MarkerArray, 'obstacle_markers', 10)
+
+        # Startpositionen der Roboter (x1, y1, x2, y2, x3, y3)
+        self.start_robot_poses = [0.0, 0.0, 1.0, 0.0, 0.0, 1.0]
+        self.obstacle_coords = [
+            {'x': 5.0, 'y': 5.0, 's': 2.0}, # Würfel bei 5,5 mit Seitenlänge 2
+            
+        ]
         
         # Zentrales Messobjekt steht bei (x=5.0, y=5.0)
         # 16 Drohnen in 4 verschiedenen Höhenschichten um das Zentrum verteilt
@@ -65,6 +72,18 @@ class OptimizerNode(Node):
         # ==========================================
         self.current_k = 1
 
+        self.optimization_done = False # Neuer Kontroll-Zustand
+
+        # --- Parameter Fallback ---
+        # Falls ROS 2 die pso_params.yaml nicht findet, nutzen wir diese Standardwerte.
+        # Hier kannst du die Gewichtung deiner Multi-Kriterien-Optimierung direkt steuern!
+        self.params = {
+            'w_crlb': 0.4,   # 40% Fokus auf Sensordaten-Qualität
+            'w_obs': 0.3,    # 30% Fokus auf Hindernisvermeidung
+            'w_inter': 0.2,  # 20% Fokus auf Formationsabstand (keine Kollisionen)
+            'w_move': 0.1    # 10% Fokus auf kurze Fahrtwege
+        }
+
         self.k_history = []
         self.total_cost_history = []
         self.cluster_costs_history = {} # Speichert die Einzelkosten pro k
@@ -89,6 +108,17 @@ class OptimizerNode(Node):
         self.get_logger().info("Schritt 1 & 2: Dateneingabe abgeschlossen, k=1 initialisiert.")
 
     def evaluate_next_k(self):
+
+        # 1. NEU: Hindernisse IMMER und SOFORT publizieren!
+        # Egal ob der Algorithmus rechnet, scheitert oder fertig ist:
+        self.publish_obstacles()
+
+        # Wenn wir fertig sind, optimieren wir nicht mehr, sondern halten nur RViz am Leben!
+        if self.optimization_done:
+            if self.best_marker_array is not None:
+                self.marker_pub.publish(self.best_marker_array)
+            return
+        
         if self.current_k > len(self.all_drones):
             self.get_logger().info("Maximale Cluster-Anzahl erreicht. Abbruch.")
             self.timer.cancel()
@@ -110,40 +140,71 @@ class OptimizerNode(Node):
                 clusters.append(self.all_drones[kmeans.labels_ == i].tolist())
                 
         # ==========================================
-        # Schritt 4: Positions-Optimierung
+        # Schritt 4 & 5: Positions-Optimierung & Gesamtkosten
         # ==========================================
-        self.get_logger().info("Schritt 4: Innere PSO-Schleife (Suche beste Formation)...")
+        self.get_logger().info("Schritt 4 & 5: PSO und Berechnung der Fahrtkosten (C_move)...")
         current_total_cost = 0.0
         formations = []
-        current_cluster_costs = [] # NEU: temporäre Liste für diesen Zyklus
+        current_cluster_costs = [] 
         valid_solution = True
         
+        # Gewicht für die Bewegung (aus Parametern)
+        w_move = self.params.get('w_move', 0.1)
+        
         for idx, cluster_drones in enumerate(clusters):
-            best_form, cost = self.optimizer.run_pso(cluster_drones, self.start_robot_poses, self.obstacle_coords)
+            # 1. INNERE SCHLEIFE (PSO): Berechnet Formationsgüte (CRLB + C_obs + C_inter)
+            best_form, pso_cost = self.optimizer.run_pso(cluster_drones, self.start_robot_poses, self.obstacle_coords)
             
-            if best_form is None:
-                self.get_logger().error(f"PSO fehlgeschlagen für Cluster {idx+1}.")
+            if pso_cost >= 1e9:
+                self.get_logger().warn("PSO-Algorithmus konnte keine valide Formation finden (Sichtlinie blockiert oder Singularität).")
+            # Hier kannst du das k-Erhöhen ggf. überspringen
+
+            if best_form is None or pso_cost == float('inf'):
+                self.get_logger().error(f"PSO fehlgeschlagen für Cluster {idx+1} (Kosten unendlich).")
                 valid_solution = False
                 break
                 
-            current_total_cost += cost
+            # 2. ÄUSSERE SCHLEIFE: Bewegungskomponente (C_move) berechnen
+            c_move_raw = 0.0
+            num_robots_in_form = len(best_form) // 2
+            
+            for i in range(num_robots_in_form):
+                # Startposition (x, y) des Roboters i
+                sx = self.start_robot_poses[i*2]
+                sy = self.start_robot_poses[i*2+1]
+                
+                # Zielposition (x, y) des Roboters i aus der PSO
+                tx = best_form[i*2]
+                ty = best_form[i*2+1]
+                
+                # Euklidische Distanz für diesen Roboter addieren
+                c_move_raw += math.hypot(tx - sx, ty - sy)
+                
+            # 3. NORMIERUNG VON C_move
+            # Wir definieren eine maximale zumutbare Fahrstrecke (z.B. 50 Meter pro Roboter)
+            max_travel_dist = num_robots_in_form * 50.0 
+            norm_move = min(c_move_raw / max_travel_dist, 1.0) if max_travel_dist > 0 else 0.0
+            
+            # 4. GESAMTKOSTEN FÜR DIESES CLUSTER ADDIEREN
+            # pso_cost enthält bereits w_crlb, w_obs, w_inter
+            cluster_total_cost = pso_cost + (w_move * norm_move)
+            
+            current_total_cost += cluster_total_cost
             formations.append(best_form)
-            current_cluster_costs.append(cost) # NEU: Kosten für dieses Cluster merken
+            current_cluster_costs.append(cluster_total_cost)
             
         if not valid_solution:
             self.timer.cancel()
             return
-
-        # Nach der Schleife speichern wir die Historie ab:
-        self.k_history.append(self.current_k)
-        self.total_cost_history.append(current_total_cost)
-        self.cluster_costs_history[self.current_k] = current_cluster_costs
-
         # ==========================================
         # Schritt 5: Berechnung der Gesamtkosten
         # ==========================================
         self.get_logger().info(f"Schritt 5: Gesamtkosten C_total = {current_total_cost:.4f}")
 
+
+        self.k_history.append(self.current_k)
+        self.total_cost_history.append(current_total_cost)
+        self.cluster_costs_history[self.current_k] = current_cluster_costs
         # ==========================================
         # Schritt 6: Entscheidung
         # ==========================================
@@ -157,17 +218,10 @@ class OptimizerNode(Node):
             self.get_logger().info(f"\n+++ ERGEBNIS +++")
             self.get_logger().info(f"Beste Formation ermittelt für k = {self.current_k - 1} Cluster.")
             
-            # Wir publishen das visualisierte Ergebnis von k-1 ein letztes Mal, 
-            # damit RViz das korrekte Endresultat anzeigt.
-            if self.best_marker_array is not None:
-                self.marker_pub.publish(self.best_marker_array)
-                
-            self.timer.cancel() # Loop stoppen
-            if self.best_marker_array is not None:
-                self.marker_pub.publish(self.best_marker_array)
-                
-            self.timer.cancel() # Loop stoppen
-            self.plot_results() # NEU: Grafik am Ende erstellen!
+            # Zustand umschalten, Plot generieren und raus!
+            # (Der Timer läuft im Hintergrund weiter und hält RViz am Leben)
+            self.optimization_done = True 
+            self.plot_results() 
             return
 
         self.get_logger().info("--> NEIN")
@@ -175,7 +229,12 @@ class OptimizerNode(Node):
         
         # --- RViz-Visualisierung für den aktuellen, gültigen Schritt aufbauen ---
         marker_array = MarkerArray()
-        self.add_obstacle_marker(marker_array)
+
+        if self.best_marker_array is not None:
+                self.marker_pub.publish(self.best_marker_array)
+                
+        # NEU: Rufe hier stattdessen die neue Hindernis-Funktion auf
+        self.publish_obstacles()
         
         # NEU: Cluster räumlich nach ihrem Winkel zum Zentrum (5.0, 5.0) sortieren.
         # Das verhindert, dass die Farben beim Erhöhen von k wild durchtauschen.
@@ -203,10 +262,61 @@ class OptimizerNode(Node):
         self.current_k += 1
 
     # --- Hilfsfunktionen für RViz ---
-    def add_obstacle_marker(self, marker_array):
-        obs = self.create_base_marker(0, Marker.CUBE, 5.0, 5.0, 0.5, 1.0, 0.1, 0.1)
-        obs.scale.x, obs.scale.y, obs.scale.z = 2.0, 2.0, 1.0
-        marker_array.markers.append(obs)
+    def publish_obstacles(self):
+        # Erstelle ein neues MarkerArray für die Hindernisse
+        marker_array = MarkerArray()
+        
+        # Standardwerte (exakt die gleichen wie in der Mathematik!)
+        DEFAULT_SIZE = 2.0
+        DEFAULT_HEIGHT = 5.0
+        
+        for i, obs in enumerate(self.obstacle_coords):
+            marker = Marker()
+            marker.header.frame_id = "map" # Wichtig für RViz
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = "obstacles"
+            marker.id = i
+            marker.type = Marker.CUBE  # <--- HIER: Wir nutzen jetzt Quader!
+            marker.action = Marker.ADD
+            
+            # 1. Daten extrahieren (Genau wie in pso_algorithm.py)
+            if isinstance(obs, dict):
+                x = obs.get('x', 0.0)
+                y = obs.get('y', 0.0)
+                s = obs.get('s', DEFAULT_SIZE)
+                h = obs.get('h', DEFAULT_HEIGHT)
+                z = obs.get('z', h / 2.0)
+            else:
+                x, y = obs[0], obs[1]
+                s, h = DEFAULT_SIZE, DEFAULT_HEIGHT
+                z = h / 2.0
+
+            # 2. Position an RViz übergeben
+            marker.pose.position.x = float(x)
+            marker.pose.position.y = float(y)
+            marker.pose.position.z = float(z)
+            
+            # Ausrichtung (Quader steht gerade)
+            marker.pose.orientation.w = 1.0 
+            marker.pose.orientation.x = 0.0
+            marker.pose.orientation.y = 0.0
+            marker.pose.orientation.z = 0.0
+
+            # 3. Skalierung direkt an die Mathematik koppeln
+            marker.scale.x = float(s) # Breite (X-Achse)
+            marker.scale.y = float(s) # Tiefe (Y-Achse)
+            marker.scale.z = float(h) # Höhe (Z-Achse)
+
+            # 4. Optik (Ziegelrot und leicht transparent)
+            marker.color.r = 0.8
+            marker.color.g = 0.2
+            marker.color.b = 0.2
+            marker.color.a = 0.7 # Transparenz, damit man Drohnen dahinter noch erahnen kann
+
+            marker_array.markers.append(marker)
+
+        # Publisher aufrufen (stelle sicher, dass self.obstacle_pub in __init__ definiert ist)
+        self.obstacle_pub.publish(marker_array)
 
     def add_cluster_markers(self, marker_array, drones, formation, drone_color, robot_color, base_id):
         for idx, d in enumerate(drones):
