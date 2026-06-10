@@ -13,6 +13,14 @@ from visualization_msgs.msg import Marker, MarkerArray
 class OptimizerNode(Node):
     def __init__(self):
         super().__init__('formation_optimizer_node')
+
+        # --- HIER: DIE DEFINITION DER HINDERNISSE ---
+        self.target_obstacles = [[0.0, 0.0, 5.0, 20.0, 15.0, 10.0]]
+        self.avoidance_obstacles = [[15.0, 12.0, 5.0, 5.0, 5.0, 10.0]]
+        
+        # Falls du alte Funktionen hast, die zwingend 'obstacle_coords' brauchen,
+        # kombiniere sie hier einmalig:
+        self.obstacle_coords = self.target_obstacles + self.avoidance_obstacles
         
         # ==========================================
         # Schritt 1: Dateneingabe
@@ -52,6 +60,33 @@ class OptimizerNode(Node):
         self.marker_pub = self.create_publisher(MarkerArray, 'formation_markers', 10)
         self.obstacle_pub = self.create_publisher(MarkerArray, 'obstacle_markers', 10)
 
+        # Feste Farbpalette für bis zu 20 Cluster
+        # Basierend auf Matplotlibs 'tab20' (Wissenschaftlicher Standard)
+        # (R, G, B) im Bereich 0.0 bis 1.0
+        # ==========================================
+        self.cluster_colors = [
+            (0.122, 0.467, 0.706),  # Cluster 0: Dunkelblau
+            (0.682, 0.780, 0.910),  # Cluster 1: Hellblau
+            (1.000, 0.498, 0.055),  # Cluster 2: Orange
+            (1.000, 0.733, 0.471),  # Cluster 3: Hellorange
+            (0.173, 0.627, 0.173),  # Cluster 4: Grün
+            (0.596, 0.875, 0.541),  # Cluster 5: Hellgrün
+            (0.839, 0.153, 0.157),  # Cluster 6: Rot
+            (1.000, 0.596, 0.588),  # Cluster 7: Hellrot
+            (0.580, 0.404, 0.741),  # Cluster 8: Lila
+            (0.773, 0.690, 0.835),  # Cluster 9: Helllila
+            (0.549, 0.337, 0.294),  # Cluster 10: Braun
+            (0.769, 0.612, 0.580),  # Cluster 11: Hellbraun
+            (0.890, 0.467, 0.761),  # Cluster 12: Pink
+            (0.969, 0.714, 0.824),  # Cluster 13: Hellpink
+            (0.498, 0.498, 0.498),  # Cluster 14: Grau
+            (0.780, 0.780, 0.780),  # Cluster 15: Hellgrau
+            (0.737, 0.741, 0.133),  # Cluster 16: Olivgrün
+            (0.859, 0.859, 0.553),  # Cluster 17: Hellolivgrün
+            (0.090, 0.745, 0.812),  # Cluster 18: Cyan
+            (0.620, 0.855, 0.898),  # Cluster 19: Hellcyan
+        ]
+
         # Startpositionen der Roboter (x1, y1, x2, y2, x3, y3)
         # Startpositionen für 6 Roboter (x1, y1, x2, y2, ...)
         self.start_robot_poses = [
@@ -62,12 +97,12 @@ class OptimizerNode(Node):
             1.0, 1.0,  # Roboter 5
             2.0, 1.0   # Roboter 6
         ]
-        self.obstacle_coords = [[0.0, 0.0, 5.0, 20.0, 15.0, 10.0]]
+        
         
         # NEU: Automatisierte 3D-Grid-Generierung passend zum Gebäude
         # 1 Drohne pro 1 qm Wandfläche, genau 1m Abstand zur Wand
         generated_drones_3d = []
-        import numpy as np
+        
         
         # Wand-Dimensionen des Gebäudes: Länge (X)=20m, Breite (Y)=15m, Höhe (Z)=10m
         # Das Gebäude zentriert sich von X=[-10, 10], Y=[-7.5, 7.5], Z=[0, 10]
@@ -75,8 +110,8 @@ class OptimizerNode(Node):
         # A) Kurze Wände (Vorne & Hinten bei X = -11.0 und +11.0 wegen 1m Abstand)
         # Y-Spanne: 15m Breite -> 15 Punkte im 1m-Abstand
         # Z-Spanne: 10m Höhe -> 10 Punkte im 1m-Abstand (0.5m bis 9.5m, keine Drohnen über 10m)
-        y_coords = np.linspace(-7.0, 7.0, 15)
-        z_coords = np.linspace(0.5, 9.5, 10)
+        y_coords = np.linspace(-7.0, 7.0, 5)
+        z_coords = np.linspace(0.5, 9.5, 2)
         
         for x in [-11.0, 11.0]:
             for y in y_coords:
@@ -85,7 +120,7 @@ class OptimizerNode(Node):
                     
         # B) Lange Wände (Links & Rechts bei Y = -8.5 und +8.5 wegen 1m Abstand)
         # X-Spanne: 20m Länge -> 20 Punkte im 1m-Abstand
-        x_coords = np.linspace(-9.5, 9.5, 20)
+        x_coords = np.linspace(-9.5, 9.5, 7)
         
         for y in [-8.5, 8.5]:
             for x in x_coords:
@@ -130,18 +165,7 @@ class OptimizerNode(Node):
         self.previous_total_cost = float('inf')
         self.best_marker_array = None # Speicher für die beste RViz-Ausgabe (k-1)
         
-        ## Einheitliche Farben für Drohnen und Roboter desselben Clusters
-        self.cluster_colors = [
-            ((0.0, 1.0, 0.0), (0.0, 1.0, 0.0)), # Hellgrün
-            ((1.0, 1.0, 0.0), (1.0, 1.0, 0.0)), # Gelb
-            ((0.0, 1.0, 1.0), (0.0, 1.0, 1.0)), # Cyan
-            ((1.0, 0.0, 1.0), (1.0, 0.0, 1.0)), # Magenta
-            ((1.0, 0.5, 0.0), (1.0, 0.5, 0.0)), # Orange
-            ((1.0, 0.2, 0.2), (1.0, 0.2, 0.2)), # Hellrot
-            ((0.5, 0.5, 1.0), (0.5, 0.5, 1.0)), # Hellblau
-            ((1.0, 1.0, 1.0), (1.0, 1.0, 1.0))  # Weiß
-        ]
-
+        
         # Starte die hochpräzise Stoppuhr
         start_time = time.perf_counter()
         
@@ -195,9 +219,13 @@ class OptimizerNode(Node):
         
         w_move = self.params.get('w_move', 0.1)
         
+        # 1. NEU HIER EINBAUEN: Beide Hindernis-Listen kombinieren
+        all_physical_obstacles = self.target_obstacles + self.avoidance_obstacles
+        
         for idx, cluster_drones in enumerate(clusters):
             # 1. INNERE SCHLEIFE (PSO)
-            best_form, pso_cost = self.optimizer.run_pso(cluster_drones, self.start_robot_poses, self.obstacle_coords)
+            # 2. HIER ANPASSEN: all_physical_obstacles statt self.obstacle_coords übergeben
+            best_form, pso_cost = self.optimizer.run_pso(cluster_drones, self.start_robot_poses, all_physical_obstacles)
             
             # NEUE LOGIK: Wenn die Kosten explodieren, ist diese Cluster-Aufteilung physikalisch unmöglich
             if best_form is None or pso_cost >= 1e8:
@@ -284,9 +312,12 @@ class OptimizerNode(Node):
         sorted_clusters.sort(key=lambda item: item[0])
 
         for idx, (_, cluster_drones, form) in enumerate(sorted_clusters):
-            d_color, r_color = self.cluster_colors[idx % len(self.cluster_colors)]
+            # 1. Hole die einzelne (R, G, B) Farbe für dieses Cluster
+            c_color = self.cluster_colors[idx % len(self.cluster_colors)]
+            
+            # 2. Übergebe diese Farbe sowohl an drone_color als auch an robot_color
             self.add_cluster_markers(marker_array, cluster_drones, form, 
-                                     drone_color=d_color, robot_color=r_color, base_id=(idx+1)*100)
+                                     drone_color=c_color, robot_color=c_color, base_id=(idx+1)*100)
         
         self.best_marker_array = marker_array 
         self.marker_pub.publish(marker_array)
@@ -298,76 +329,86 @@ class OptimizerNode(Node):
         
     # --- Hilfsfunktionen für RViz ---
     def publish_obstacles(self):
-        # Erstelle ein neues MarkerArray für die Hindernisse
         marker_array = MarkerArray()
         
-        # Standardwerte (exakt die gleichen wie in der Mathematik!)
-        DEFAULT_SIZE = 2.0
-        DEFAULT_HEIGHT = 5.0
+        # Hilfsfunktion für die Marker-Generierung
+        def create_markers(obs_list, r, g, b):
+            for obs in obs_list:
+                marker = Marker()
+                marker.header.frame_id = "map"
+                marker.header.stamp = self.get_clock().now().to_msg()
+                marker.ns = "obstacles"
+                
+                # Vergibt automatisch immer die nächste freie ID (0, 1, 2, ...)
+                marker.id = len(marker_array.markers) 
+                marker.type = Marker.CUBE
+                marker.action = Marker.ADD
+                
+                # Format auslesen: [x, y, z, size_x, size_y, size_z]
+                marker.pose.position.x = float(obs[0])
+                marker.pose.position.y = float(obs[1])
+                marker.pose.position.z = float(obs[2])
+                
+                marker.pose.orientation.w = 1.0 
+                marker.pose.orientation.x = 0.0
+                marker.pose.orientation.y = 0.0
+                marker.pose.orientation.z = 0.0
+
+                marker.scale.x = float(obs[3])
+                marker.scale.y = float(obs[4])
+                marker.scale.z = float(obs[5])
+
+                # Die übergebene Farbe anwenden
+                marker.color.r = r
+                marker.color.g = g
+                marker.color.b = b
+                marker.color.a = 0.7 
+
+                marker_array.markers.append(marker)
+
+        # 1. Mess-Objekte / Zielgebäude zeichnen (Grün)
+        create_markers(self.target_obstacles, 0.2, 0.8, 0.2)
         
-        for i, obs in enumerate(self.obstacle_coords):
-            marker = Marker()
-            marker.header.frame_id = "map" # Wichtig für RViz
-            marker.header.stamp = self.get_clock().now().to_msg()
-            marker.ns = "obstacles"
-            marker.id = i
-            marker.type = Marker.CUBE  # <--- HIER: Wir nutzen jetzt Quader!
-            marker.action = Marker.ADD
-            
-            # 1. Daten extrahieren (Genau wie in pso_algorithm.py)
-            if isinstance(obs, dict):
-                x = obs.get('x', 0.0)
-                y = obs.get('y', 0.0)
-                s = obs.get('s', DEFAULT_SIZE)
-                h = obs.get('h', DEFAULT_HEIGHT)
-                z = obs.get('z', h / 2.0)
-            else:
-                x, y = obs[0], obs[1]
-                s, h = DEFAULT_SIZE, DEFAULT_HEIGHT
-                z = h / 2.0
+        # 2. Ausweich-Hindernisse / Störobjekte zeichnen (Rot)
+        create_markers(self.avoidance_obstacles, 0.8, 0.2, 0.2)
 
-            # 2. Position an RViz übergeben
-            marker.pose.position.x = float(x)
-            marker.pose.position.y = float(y)
-            marker.pose.position.z = float(z)
-            
-            # Ausrichtung (Quader steht gerade)
-            marker.pose.orientation.w = 1.0 
-            marker.pose.orientation.x = 0.0
-            marker.pose.orientation.y = 0.0
-            marker.pose.orientation.z = 0.0
-
-            # 3. Skalierung direkt an die Mathematik koppeln
-            marker.scale.x = float(s) # Breite (X-Achse)
-            marker.scale.y = float(s) # Tiefe (Y-Achse)
-            marker.scale.z = float(h) # Höhe (Z-Achse)
-
-            # 4. Optik (Ziegelrot und leicht transparent)
-            marker.color.r = 0.8
-            marker.color.g = 0.2
-            marker.color.b = 0.2
-            marker.color.a = 0.7 # Transparenz, damit man Drohnen dahinter noch erahnen kann
-
-            marker_array.markers.append(marker)
-
-        # Publisher aufrufen (stelle sicher, dass self.obstacle_pub in __init__ definiert ist)
+        # Alles gebündelt an RViz senden
         self.obstacle_pub.publish(marker_array)
 
     def add_cluster_markers(self, marker_array, drones, formation, drone_color, robot_color, base_id):
+        # 1. Drohnen zeichnen (bleibt unverändert)
         for idx, d in enumerate(drones):
             # d[2] sorgt dafür, dass die Kugel in RViz in der Luft schwebt!
             drone_marker = self.create_base_marker(base_id + idx, Marker.SPHERE, d[0], d[1], d[2], *drone_color)
             drone_marker.scale.x, drone_marker.scale.y, drone_marker.scale.z = 0.5, 0.5, 0.5
             marker_array.markers.append(drone_marker)
             
-        # Dynamische Anzahl der Roboter aus der Formations-Länge ableiten
+        # 2. Roboter-Typen laden (Fallback-Liste)
+        robot_types = getattr(self, 'params', {}).get('robot_types', ['A', 'A', 'A', 'A', 'B', 'B'])
+
+        # 3. Dynamische Anzahl der Roboter aus der Formations-Länge ableiten
         num_robots = len(formation) // 2
         for i in range(num_robots):
             rx = float(formation[i*2])
             ry = float(formation[i*2+1])
-            robot_marker = self.create_base_marker(base_id + 50 + i, Marker.CYLINDER, rx, ry, 0.2, *robot_color)
-            robot_marker.scale.x, robot_marker.scale.y, robot_marker.scale.z = 0.6, 0.6, 0.4
+            
+            # Welcher Typ ist dieser Roboter?
+            r_type = robot_types[i] if i < len(robot_types) else 'A'
+
+            # 4. Marker mit typspezifischer Höhe, aber CLUSTER-FARBE erstellen
+            if r_type == 'A':
+                # Typ A: Flach (0.2m hoch)
+                scale_z = 0.2
+                robot_marker = self.create_base_marker(base_id + 50 + i, Marker.CYLINDER, rx, ry, scale_z / 2.0, *robot_color)
+                robot_marker.scale.x, robot_marker.scale.y, robot_marker.scale.z = 0.5, 0.5, scale_z
+            else:
+                # Typ B: Hoch (1.2m hoch)
+                scale_z = 1.2
+                robot_marker = self.create_base_marker(base_id + 50 + i, Marker.CYLINDER, rx, ry, scale_z / 2.0, *robot_color)
+                robot_marker.scale.x, robot_marker.scale.y, robot_marker.scale.z = 0.6, 0.6, scale_z
+
             marker_array.markers.append(robot_marker)
+
     def create_base_marker(self, m_id, m_type, x, y, z, r, g, b):
         marker = Marker()
         marker.header.frame_id = "map"
@@ -395,9 +436,13 @@ class OptimizerNode(Node):
         # Einzelne Clusterkosten als Punkte (Scatter) eintragen
         for k, costs in self.cluster_costs_history.items():
             for idx, c in enumerate(costs):
+                # 1. Die exakt gleiche Farbe wie in RViz aus der Liste laden!
+                c_color = self.cluster_colors[idx % len(self.cluster_colors)]
+                
                 # Punkte einzeichnen (leicht versetzt auf der x-Achse für bessere Lesbarkeit)
                 offset = (idx - len(costs)/2) * 0.05 
-                plt.scatter(k + offset, c, s=100, zorder=5)
+                # 2. Das color=c_color Argument hinzufügen
+                plt.scatter(k + offset, c, s=100, zorder=5, color=c_color)
                 # Cluster-Nummer daneben schreiben
                 plt.text(k + offset + 0.05, c, f'C{idx+1}', fontsize=9, verticalalignment='center')
 
