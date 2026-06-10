@@ -1,0 +1,22 @@
+/formation_optimizer_node:
+  ros__parameters:
+    # Gewichtungen für die Multi-Objective Gesamtkosten (J_total)
+    w_crlb: 1.0
+    w_move: 0.1
+    w_obs: 0.5
+
+    # Hardware-Spezifikation (Flottenzusammensetzung)
+    robot_types: ["A", "A", "A", "A", "B", "B"]
+    
+    # PSO Hyperparameter
+    max_iterations: 50
+    c1: 1.5               # Cognitive Parameter (Zug zu pBest)
+    c2: 1.5               # Social Parameter (Zug zu gBest)
+    inertia_weight: 0.5   # Trägheit
+    
+    # Harte Grenzen (Hard Constraints)
+    max_drone_dist: 30.0  # Meter
+    
+    # Weiche Hindernis-Grenzen (Soft Constraints)
+    d_safe: 2.0           # Meter (ab hier greift die exponentielle Strafe)
+    d_crash: 0.15         # Meter (ab hier J_obs = unendlich, angepasst auf 30cm Roboter-Durchmesser)

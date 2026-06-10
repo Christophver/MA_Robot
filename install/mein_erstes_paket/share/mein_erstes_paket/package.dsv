@@ -1,6 +1,0 @@
-source;share/mein_erstes_paket/hook/pythonpath.ps1
-source;share/mein_erstes_paket/hook/pythonpath.dsv
-source;share/mein_erstes_paket/hook/pythonpath.sh
-source;share/mein_erstes_paket/hook/ament_prefix_path.ps1
-source;share/mein_erstes_paket/hook/ament_prefix_path.dsv
-source;share/mein_erstes_paket/hook/ament_prefix_path.sh
