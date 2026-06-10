@@ -16,16 +16,35 @@ class OptimizerNode(Node):
         # ==========================================
         # Schritt 1: Dateneingabe
         # ==========================================
+        # Vorhandene Parameter
         self.declare_parameter('w_crlb', 1.0)
         self.declare_parameter('w_move', 0.1)
         self.declare_parameter('w_obs', 0.5)
         self.declare_parameter('max_drone_dist', 30.0)
+        self.declare_parameter('robot_types', ['A', 'A', 'B', 'B'])
+        
+        # NEU: Die Hyperparameter und Constraints aus der YAML anmelden
+        self.declare_parameter('max_iterations', 50)
+        self.declare_parameter('c1', 1.5)
+        self.declare_parameter('c2', 1.5)
+        self.declare_parameter('inertia_weight', 0.5)
+        self.declare_parameter('d_safe', 2.0)
+        self.declare_parameter('d_crash', 0.15) # Auf 30cm Roboter (Radius 15cm) angepasst
         
         params = {
             'w_crlb': self.get_parameter('w_crlb').value,
             'w_move': self.get_parameter('w_move').value,
             'w_obs': self.get_parameter('w_obs').value,
             'max_drone_dist': self.get_parameter('max_drone_dist').value,
+            'robot_types': self.get_parameter('robot_types').value,
+            
+            # NEU: Werte ins Dictionary packen
+            'max_iterations': self.get_parameter('max_iterations').value,
+            'c1': self.get_parameter('c1').value,
+            'c2': self.get_parameter('c2').value,
+            'inertia_weight': self.get_parameter('inertia_weight').value,
+            'd_safe': self.get_parameter('d_safe').value,
+            'd_crash': self.get_parameter('d_crash').value,
         }
         
         self.optimizer = SwarmOptimizer(params)
@@ -33,39 +52,58 @@ class OptimizerNode(Node):
         self.obstacle_pub = self.create_publisher(MarkerArray, 'obstacle_markers', 10)
 
         # Startpositionen der Roboter (x1, y1, x2, y2, x3, y3)
-        self.start_robot_poses = [0.0, 0.0, 1.0, 0.0, 0.0, 1.0]
-        self.obstacle_coords = [
-            {'x': 5.0, 'y': 5.0, 's': 2.0}, # Würfel bei 5,5 mit Seitenlänge 2
-            
+        # Startpositionen für 6 Roboter (x1, y1, x2, y2, ...)
+        self.start_robot_poses = [
+            0.0, 0.0,  # Roboter 1
+            1.0, 0.0,  # Roboter 2
+            2.0, 0.0,  # Roboter 3
+            0.0, 1.0,  # Roboter 4
+            1.0, 1.0,  # Roboter 5
+            2.0, 1.0   # Roboter 6
         ]
+        self.obstacle_coords = [[0.0, 0.0, 5.0, 20.0, 15.0, 10.0]]
         
-        # Zentrales Messobjekt steht bei (x=5.0, y=5.0)
-        # 16 Drohnen in 4 verschiedenen Höhenschichten um das Zentrum verteilt
-        self.all_drones = np.array([
-            # --- Ebene 1: Niedrige Höhe (z = 4.0 m), enger Radius (2 m) ---
-            [5.0, 3.0, 4.0], 
-            [3.0, 5.0, 4.0], 
-            [7.0, 5.0, 4.0], 
-            [5.0, 7.0, 4.0],
+        # NEU: Automatisierte 3D-Grid-Generierung passend zum Gebäude
+        # 1 Drohne pro 1 qm Wandfläche, genau 1m Abstand zur Wand
+        generated_drones_3d = []
+        import numpy as np
+        
+        # Wand-Dimensionen des Gebäudes: Länge (X)=20m, Breite (Y)=15m, Höhe (Z)=10m
+        # Das Gebäude zentriert sich von X=[-10, 10], Y=[-7.5, 7.5], Z=[0, 10]
+        
+        # A) Kurze Wände (Vorne & Hinten bei X = -11.0 und +11.0 wegen 1m Abstand)
+        # Y-Spanne: 15m Breite -> 15 Punkte im 1m-Abstand
+        # Z-Spanne: 10m Höhe -> 10 Punkte im 1m-Abstand (0.5m bis 9.5m, keine Drohnen über 10m)
+        y_coords = np.linspace(-7.0, 7.0, 15)
+        z_coords = np.linspace(0.5, 9.5, 10)
+        
+        for x in [-11.0, 11.0]:
+            for y in y_coords:
+                for z in z_coords:
+                    generated_drones_3d.append([float(x), float(y), float(z)])
+                    
+        # B) Lange Wände (Links & Rechts bei Y = -8.5 und +8.5 wegen 1m Abstand)
+        # X-Spanne: 20m Länge -> 20 Punkte im 1m-Abstand
+        x_coords = np.linspace(-9.5, 9.5, 20)
+        
+        for y in [-8.5, 8.5]:
+            for x in x_coords:
+                for z in z_coords:
+                    generated_drones_3d.append([float(x), float(y), float(z)])
 
-            # --- Ebene 2: Mittlere Höhe (z = 7.0 m), mittlerer Radius (3 m), diagonal versetzt ---
-            [2.8, 2.8, 7.0], 
-            [7.1, 2.8, 7.0], 
-            [2.8, 7.1, 7.0], 
-            [7.1, 7.1, 7.0],
-
-            # --- Ebene 3: Hohe Höhe (z = 10.0 m), weiter Radius (4 m) ---
-            [5.0, 1.0, 10.0], 
-            [1.0, 5.0, 10.0], 
-            [9.0, 5.0, 10.0], 
-            [5.0, 9.0, 10.0],
-
-            # --- Ebene 4: Sehr hoch (z = 13.0 m), fast direkt über dem Objekt (Radius 1 m) ---
-            [5.0, 4.0, 13.0], 
-            [4.0, 5.0, 13.0], 
-            [6.0, 5.0, 13.0], 
-            [5.0, 6.0, 13.0]
-        ])
+        # Logge die exakte Anzahl im ROS 2 Terminal (erzeugt mathematisch exakt 700 Punkte)
+        self.get_logger().info(f"Test-Szenario generiert: {len(generated_drones_3d)} Drohnen-Messpunkte erzeugt.")
+        
+        # Umwandlung in 6D-Posen über deine bestehende Methode
+        drones_6d = []
+        main_obstacle = self.obstacle_coords[0] 
+        
+        for pos in generated_drones_3d:
+            pose = self.calculate_drone_pose_facing_wall(pos, main_obstacle)
+            drones_6d.append(pose)
+            
+        # self.all_drones enthält jetzt die vollständige 6D-Matrix [x, y, z, roll, pitch, yaw]
+        self.all_drones = np.array(drones_6d)
         
         # ==========================================
         # Schritt 2: Initialisierung
@@ -199,7 +237,7 @@ class OptimizerNode(Node):
         # ==========================================
         # Schritt 5: Berechnung der Gesamtkosten
         # ==========================================
-        self.get_logger().info(f"Schritt 5: Gesamtkosten C_total = {current_total_cost:.4f}")
+        self.get_logger().info(f"Schritt 5: Gesamtkosten J_total = {current_total_cost:.4f}")
 
 
         self.k_history.append(self.current_k)
@@ -354,8 +392,8 @@ class OptimizerNode(Node):
     def plot_results(self):
         plt.figure(figsize=(10, 6))
         
-        # Gesamtkosten als durchgehende schwarze Linie
-        plt.plot(self.k_history, self.total_cost_history, 'k-o', linewidth=2, label='Gesamtkosten (C_total)')
+        # Gesamtkosten mit LaTeX-Notation für J_total
+        plt.plot(self.k_history, self.total_cost_history, 'k-o', linewidth=2, label=r'Gesamtkosten ($J_{total}$)')
         
         # Einzelne Clusterkosten als Punkte (Scatter) eintragen
         for k, costs in self.cluster_costs_history.items():
@@ -370,22 +408,52 @@ class OptimizerNode(Node):
         best_k = self.current_k - 1
         plt.axvline(x=best_k, color='green', linestyle='--', alpha=0.5, label=f'Optimales k = {best_k}')
 
-        # Diagramm hübsch machen
-        plt.title('Entwicklung der CRLB-Kosten über die Iterationen')
+        # Diagramm hübsch machen und exakt an die Thesis anpassen!
+        plt.title(r'Entwicklung der Gesamtkosten ($J_{total}$) über die Iterationen')
         plt.xlabel('Anzahl der Cluster (k)')
-        plt.ylabel('Kosten')
+        plt.ylabel(r'Kosten ($J_{total}$)')
         plt.xticks(self.k_history) # Nur ganze Zahlen auf der x-Achse
         plt.grid(True, linestyle=':', alpha=0.7)
         plt.legend()
         plt.tight_layout()
         
-        # Direkt in deinem Workspace speichern
-        save_path = '/home/vboxuser/map_ws/crlb_plot.png'
+        # Speichername anpassen, um alte Plots nicht zu überschreiben
+        save_path = '/home/vboxuser/map_ws/j_total_plot.png'
         plt.savefig(save_path, dpi=300)
         self.get_logger().info(f"Plot wurde erfolgreich gespeichert unter: {save_path}")
         
         # Fenster öffnen
         plt.show()
+
+    def calculate_drone_pose_facing_wall(self, drone_pos, obs):
+        dx, dy, dz = drone_pos
+        
+        # Hindernis-Grenzen (Bounding Box)
+        s_half = obs['s'] / 2.0
+        h_half = obs.get('h', 5.0) / 2.0 
+        z_center = obs.get('z', h_half)
+        
+        x_min, x_max = obs['x'] - s_half, obs['x'] + s_half
+        y_min, y_max = obs['y'] - s_half, obs['y'] + s_half
+        z_min, z_max = z_center - h_half, z_center + h_half
+        
+        # Nächstgelegenen Punkt auf der Quader-Oberfläche finden
+        nx = max(x_min, min(dx, x_max))
+        ny = max(y_min, min(dy, y_max))
+        nz = max(z_min, min(dz, z_max))
+        
+        # Blickvektor
+        look_x = nx - dx
+        look_y = ny - dy
+        look_z = nz - dz
+        
+        # Winkel berechnen
+        yaw = math.atan2(look_y, look_x)
+        dist_xy = math.hypot(look_x, look_y)
+        pitch = math.atan2(look_z, dist_xy) 
+        roll = 0.0 
+        
+        return [dx, dy, dz, roll, pitch, yaw]
 
 def main(args=None):
     rclpy.init(args=args)
