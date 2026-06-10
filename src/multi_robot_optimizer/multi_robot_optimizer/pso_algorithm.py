@@ -18,7 +18,7 @@ class SwarmOptimizer:
         # 2. Dynamische Partikelanzahl: N = 10 * D (mindestens 30)
         num_particles = max(30, 10 * dimensions)
         
-        particles = np.random.uniform(-5, 5, (num_particles, dimensions))
+        particles = np.random.uniform(-15, 15, (num_particles, dimensions))
         
         # Streuung der Partikel um das Cluster-Zentrum
         for i in range(self.num_robots):
@@ -66,6 +66,16 @@ class SwarmOptimizer:
                     global_best_position = particles[i].copy()
                     improved = True
             
+
+            # ==========================================
+            # NEUER SICHERHEITSCHECK falls alle Partikel im Hindernis landen
+            # ==========================================
+            if global_best_position is None:
+                # Der komplette Schwarm steckt im Hindernis fest. 
+                # Sofortiger Abbruch, Melde "Unmöglich" an den Hauptknoten!
+                return None, float('inf')
+            
+
             # --- START PARTIKEL UPDATE ---
             # Zufallsmatrizen r1 und r2 (stochastische Komponente)
             r1 = np.random.rand(num_particles, dimensions)
@@ -335,9 +345,10 @@ class SwarmOptimizer:
     def _calculate_obstacle_penalty(self, formation, obstacle_coords):
         penalty = 0.0
         
-        # Werte für deine Parameter (siehe LaTeX-Notizen)
+        # Werte für deine Parameter
         d_safe = self.params.get('d_safe', 2.0)
-        d_crash = self.params.get('d_crash', 0.15)
+        # Erhöht auf 0.3 (30cm Roboter-Radius), damit er nicht mal die Wand berührt
+        d_crash = self.params.get('d_crash', 0.3) 
 
         for i in range(self.num_robots):
             rx, ry = formation[i*2], formation[i*2+1]
@@ -346,26 +357,32 @@ class SwarmOptimizer:
             min_d_obs = float('inf')
             
             for obs in obstacle_coords:
-                # Robuste Datenextraktion (wie in _is_los_blocked)
+                # 1. ROBUSTE DATENEXTRAKTION (Erkennt jetzt das 20x15 Gebäude!)
                 if isinstance(obs, dict):
-                    ox = obs.get('x', 0.0)
-                    oy = obs.get('y', 0.0)
-                    os_val = obs.get('s', 2.0)
+                    cx = obs.get('x', 0.0)
+                    cy = obs.get('y', 0.0)
+                    sx = obs.get('s', 2.0)
+                    sy = obs.get('s', 2.0)
+                elif len(obs) == 6:
+                    # Dein neues Format: [x, y, z, size_x, size_y, size_z]
+                    cx, cy = obs[0], obs[1]
+                    sx, sy = obs[3], obs[4]
                 else:
-                    ox, oy = obs[0], obs[1]
-                    os_val = 2.0
+                    # Altes Format Fallback
+                    cx, cy = obs[0], obs[1]
+                    sx, sy = 2.0, 2.0 
                 
-                # Euklidische Distanz zur nächstgelegenen Außenkante des Quaders
-                dx = max(0.0, abs(rx - ox) - (os_val / 2.0))
-                dy = max(0.0, abs(ry - oy) - (os_val / 2.0))
+                # 2. Euklidische Distanz zur Außenkante des Quaders (AABB)
+                dx = max(0.0, abs(rx - cx) - (sx / 2.0))
+                dy = max(0.0, abs(ry - cy) - (sy / 2.0))
                 d_obs = math.hypot(dx, dy)
                 
                 if d_obs < min_d_obs:
                     min_d_obs = d_obs
             
-            # Umsetzung der stückweise definierten Funktion aus der Thesis
+            # 3. Die unbarmherzige Wand
             if min_d_obs <= d_crash:
-                # Partikel ist physisch im Hindernis -> unendliche Kosten
+                # Partikel ist physisch im Hindernis oder berührt die Wand -> unendliche Kosten
                 return float('inf') 
             elif min_d_obs < d_safe:
                 # Partikel ist im Potenzialfeld -> exponentielle Strafe
