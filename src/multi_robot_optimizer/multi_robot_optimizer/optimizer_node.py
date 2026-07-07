@@ -10,6 +10,88 @@ import time
 from multi_robot_optimizer.pso_algorithm import SwarmOptimizer
 from visualization_msgs.msg import Marker, MarkerArray
 
+class ESDFMap:
+    def __init__(self, esdf_matrix, pixel_to_meter, origin_x=0.0, origin_y=0.0):
+        """
+        Initialisiert das euklidische Distanzfeld für die PSO-Simulation.
+        
+        :param esdf_matrix: 2D numpy array (OpenCV distanceTransform Ausgang)
+        :param pixel_to_meter: Skalierungsfaktor (GSD) in Metern pro Pixel
+        :param origin_x: Weltkoordinate X, die dem Pixel [0,0] entspricht
+        :param origin_y: Weltkoordinate Y, die dem Pixel [0,0] entspricht
+        """
+        self.grid = esdf_matrix.astype(np.float32)
+        self.resolution = float(pixel_to_meter)
+        self.origin_x = float(origin_x)
+        self.origin_y = float(origin_y)
+        
+        # Grid-Dimensionen (Rows = Y, Cols = X)
+        self.height, self.width = self.grid.shape
+
+    def world_to_pixel(self, wx, wy):
+        """Transformiert kontinuierliche Weltkoordinaten in kontinuierliche Pixelkoordinaten."""
+        px = (wx - self.origin_x) / self.resolution
+        py = (wy - self.origin_y) / self.resolution
+        return px, py
+
+    def get_distance_and_angle(self, world_x, world_y):
+        """
+        Berechnet die bilineare interpolierte Distanz und den orthogonalen
+        Blickwinkel zur nächstgelegenen Fassade für eine gegebene Position.
+        
+        :return: (distance_in_meters, target_yaw_angle_rad)
+                 Gibt (None, None) zurück, wenn das Partikel außerhalb der Karte ist.
+        """
+        # 1. Transformation in den Pixelraum
+        px, py = self.world_to_pixel(world_x, world_y)
+        
+        # Bestimmung der vier umliegenden Pixel-Indizes
+        x0 = int(math.floor(px))
+        y0 = int(math.floor(py))
+        x1 = x0 + 1
+        y1 = y0 + 1
+        
+        # Randschutz: Prüfen, ob alle benötigten Indizes innerhalb des Grids liegen
+        if x0 < 0 or x1 >= self.width or y0 < 0 or y1 >= self.height:
+            # Außerhalb der Karte: Kollision annehmen oder Strafwert zurückgeben
+            return -1.0, 0.0 
+            
+        # Lokale Gewichte im Subgrid-Bereich (u, v in [0, 1])
+        u = px - x0
+        v = py - y0
+        
+        # Auslesen der diskreten Distanzwerte (Achtung: Matrix-Index ist [Zeile, Spalte] -> [y, x])
+        d00 = self.grid[y0, x0]
+        d10 = self.grid[y0, x1]
+        d01 = self.grid[y1, x0]
+        d11 = self.grid[y1, x1]
+        
+        # 2. Bilineare Interpolation des Distanzwertes (Zellwert ist in Pixeln ausgedrückt)
+        dist_pixel = (1 - u) * (1 - v) * d00 + \
+                     u * (1 - v) * d10 + \
+                     (1 - u) * v * d01 + \
+                     u * v * d11
+                     
+        # Umrechnung der Distanz in echte Meter
+        distance_meters = dist_pixel * self.resolution
+        
+        # 3. Analytische Berechnung des Gradienten bezüglich des lokalen Koordinatensystems
+        # Ableitung nach u (X-Richtung im Pixelraum)
+        grad_u = (1 - v) * (d10 - d00) + v * (d11 - d01)
+        # Ableitung nach v (Y-Richtung im Pixelraum)
+        grad_v = (1 - u) * (d01 - d00) + u * (d11 - d10)
+        
+        # Transformation des Gradientenvektors in den Weltraum (Skalierung korrigieren)
+        # Da wir den Blickwinkel *zur* Wand wollen (Inverser Gradient), invertieren wir die Vorzeichen
+        grad_x = -grad_u / self.resolution
+        grad_y = -grad_v / self.resolution
+        
+        # 4. Berechnung des idealen Gierwinkels (Yaw) im Bogenmaß via atan2
+        # Zeigt orthogonal auf die nächstgelegene Fassade
+        target_yaw = math.atan2(grad_y, grad_x)
+        
+        return distance_meters, target_yaw
+
 class OptimizerNode(Node):
     def __init__(self):
         super().__init__('formation_optimizer_node')
