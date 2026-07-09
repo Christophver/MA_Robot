@@ -1,11 +1,88 @@
 import numpy as np
 import math
 
+from skimage.draw import line # Wichtig für den Bresenham!
+
+
+class ESDFMapVectorized:
+    def __init__(self, esdf_matrix, pixel_to_meter, origin_x=0.0, origin_y=0.0):
+        self.grid = esdf_matrix.astype(np.float32)
+        self.resolution = float(pixel_to_meter)
+        self.origin_x = float(origin_x)
+        self.origin_y = float(origin_y)
+        self.height, self.width = self.grid.shape
+
+    def get_distance_and_angle_batch(self, wx_array, wy_array):
+        """
+        Berechnet Distanz und Winkel für ein NumPy-Array von Positionen gleichzeitig.
+        :param wx_array: 1D NumPy-Array der X-Koordinaten aller Roboter/Partikel
+        :param wy_array: 1D NumPy-Array der Y-Koordinaten aller Roboter/Partikel
+        """
+        # 1. Transformation in den Pixelraum (Vektorisiert)
+        px = (wx_array - self.origin_x) / self.resolution
+        py = (wy_array - self.origin_y) / self.resolution  # Achtung wegen Y-Flip (siehe Punkt 1)
+
+        x0 = np.floor(px).astype(np.int32)
+        y0 = np.floor(py).astype(np.int32)
+        x1 = x0 + 1
+        y1 = y0 + 1
+
+        # Randschutz-Maske erstellen (Gibt True aus, wenn Partikel innerhalb der Grenzen liegt)
+        valid_mask = (x0 >= 0) & (x1 < self.width) & (y0 >= 0) & (y1 < self.height)
+
+        # Sichere Indizes für die Matrix-Abfrage (ungültige Werte temporär auf 0 setzen, um IndexErrors zu vermeiden)
+        x0_safe = np.clip(x0, 0, self.width - 1)
+        x1_safe = np.clip(x1, 0, self.width - 1)
+        y0_safe = np.clip(y0, 0, self.height - 1)
+        y1_safe = np.clip(y1, 0, self.height - 1)
+
+        # Lokale Gewichte
+        u = px - x0
+        v = py - y0
+
+        # Werte aus dem Grid auslesen
+        d00 = self.grid[y0_safe, x0_safe]
+        d10 = self.grid[y0_safe, x1_safe]
+        d01 = self.grid[y1_safe, x0_safe]
+        d11 = self.grid[y1_safe, x1_safe]
+
+        # Bilineare Interpolation (Vektorisiert über alle Elemente)
+        dist_pixel = (1 - u) * (1 - v) * d00 + u * (1 - v) * d10 + (1 - u) * v * d01 + u * v * d11
+        distance_meters = dist_pixel * self.resolution
+
+        # Analytischer Gradient
+        grad_u = (1 - v) * (d10 - d00) + v * (d11 - d01)
+        grad_v = (1 - u) * (d01 - d00) + u * (d11 - d10)
+
+        # Richtung zur Wand bestimmen
+        grad_x = -grad_u / self.resolution
+        grad_y = -grad_v / self.resolution
+        target_yaw = np.arctan2(grad_y, grad_x)
+
+        # Ungültige Werte (außerhalb der Karte) mit Strafwerten überschreiben
+        distance_meters = np.where(valid_mask, distance_meters, -1.0)
+        target_yaw = np.where(valid_mask, target_yaw, 0.0)
+
+        return distance_meters, target_yaw
+    
+    
 class SwarmOptimizer:
-    def __init__(self, params):
+    def __init__(self, params, esdf_map, binary_grid, map_resolution, map_origin_x, map_origin_y):
         self.params = params
-        self.num_robots = 3 # Wird in run_pso dynamisch überschrieben
-        self.obstacle_coords = []
+        self.num_robots = 3 
+        
+        # NEU: Karten-Daten speichern
+        self.esdf_map = esdf_map
+        self.binary_grid = binary_grid
+        self.map_resolution = map_resolution
+        self.map_origin_x = map_origin_x
+        self.map_origin_y = map_origin_y
+        
+        self.grid_height, self.grid_width = self.binary_grid.shape
+        
+        # Lade Schwellenwerte einmalig zur Optimierung
+        self.d_safe = self.params.get('d_safe', 2.0)
+        self.d_crash = self.params.get('d_crash', 0.15)
 
     def run_pso(self, drone_cluster, start_robot_poses, obstacle_coords):
         cluster_center = np.mean(drone_cluster, axis=0) 
@@ -206,7 +283,7 @@ class SwarmOptimizer:
                 continue 
                 
             # LoS-Check (Hindernisprüfung)
-            if self._is_los_blocked([tx, ty, tz], drone_pose[:3], self.obstacle_coords):
+            if self._is_los_blocked([tx, ty, tz], drone_pose[:3]):
                 continue 
 
             # --- POSITIONS-BLOCK ---
@@ -261,132 +338,47 @@ class SwarmOptimizer:
             
         
     
-    def _is_los_blocked(self, robot_pos, drone_pos, obstacle_coords):
-        """
-        Prüft mittels 3D Slab-Algorithmus, ob die Sichtlinie zwischen Roboter 
-        und Drohne einen quaderförmigen Hinderniskörper (AABB) schneidet.
-        """
-        # Standardwerte für alte Formate
-        DEFAULT_SIZE = 2.0
-        DEFAULT_HEIGHT = 5.0
+    def _is_los_blocked(self, robot_pos, drone_pos):
+        """Prüft Sichtlinie via 2D Bresenham auf dem binären Grid."""
+        # 1. Welt- in Pixelkoordinaten umwandeln
+        px_r = int((robot_pos[0] - self.map_origin_x) / self.map_resolution)
+        py_r = int((robot_pos[1] - self.map_origin_y) / self.map_resolution)
         
-        for obs in obstacle_coords:
-            # 1. ROBUSTE DATENEXTRAKTION (Angepasst für Quader)
-            if isinstance(obs, dict):
-                cx = obs.get('x', 0.0)
-                cy = obs.get('y', 0.0)
-                # Versuche sx/sy zu laden, falle sonst auf 's' zurück
-                sx = obs.get('sx', obs.get('s', DEFAULT_SIZE)) 
-                sy = obs.get('sy', obs.get('s', DEFAULT_SIZE))
-                sz = obs.get('h', DEFAULT_HEIGHT) 
-                cz = obs.get('z', sz / 2.0)
-            else:
-                # Prüfen, ob das neue 6D-Format [cx, cy, cz, sx, sy, sz] vorliegt
-                if len(obs) == 6:
-                    cx, cy, cz, sx, sy, sz = obs
-                else:
-                    # Fallback für alte [x, y]-Listen
-                    cx = obs[0]
-                    cy = obs[1]
-                    sx = DEFAULT_SIZE
-                    sy = DEFAULT_SIZE
-                    sz = DEFAULT_HEIGHT
-                    cz = sz / 2.0
-                
-            # 2. GRENZEN DER BOUNDING BOX (AABB) BERECHNEN
-            x_min, x_max = cx - (sx / 2.0), cx + (sx / 2.0)
-            y_min, y_max = cy - (sy / 2.0), cy + (sy / 2.0)
-            z_min, z_max = cz - (sz / 2.0), cz + (sz / 2.0)
+        px_d = int((drone_pos[0] - self.map_origin_x) / self.map_resolution)
+        py_d = int((drone_pos[1] - self.map_origin_y) / self.map_resolution)
+        
+        # 2. Pixel der Linie berechnen (Bresenham)
+        # Achtung: skimage erwartet (row, col) also (y, x)
+        rr, cc = line(py_d, px_d, py_r, px_r)
+        
+        # 3. Randschutz (außerhalb der Karte abschneiden)
+        valid = (rr >= 0) & (rr < self.grid_height) & (cc >= 0) & (cc < self.grid_width)
+        rr, cc = rr[valid], cc[valid]
+        
+        # 4. Kollisionsprüfung: Ist ein Pixel auf der Linie ein Hindernis?
+        if np.any(self.binary_grid[rr, cc] > 0):
+            return True # Blockiert!
             
-            # 3. RICHTUNGSVEKTOR DER SICHTLINIE
-            dir_x = drone_pos[0] - robot_pos[0]
-            dir_y = drone_pos[1] - robot_pos[1]
-            dir_z = drone_pos[2] - robot_pos[2]
-            
-            t_enter = float('-inf')
-            t_exit = float('inf')
-            
-            # 4. SLAB-TEST FÜR ALLE 3 ACHSEN
-            
-            # X-Achse
-            if dir_x != 0:
-                tx1 = (x_min - robot_pos[0]) / dir_x
-                tx2 = (x_max - robot_pos[0]) / dir_x
-                t_enter = max(t_enter, min(tx1, tx2))
-                t_exit = min(t_exit, max(tx1, tx2))
-            elif robot_pos[0] < x_min or robot_pos[0] > x_max:
-                continue 
-                
-            # Y-Achse
-            if dir_y != 0:
-                ty1 = (y_min - robot_pos[1]) / dir_y
-                ty2 = (y_max - robot_pos[1]) / dir_y
-                t_enter = max(t_enter, min(ty1, ty2))
-                t_exit = min(t_exit, max(ty1, ty2))
-            elif robot_pos[1] < y_min or robot_pos[1] > y_max:
-                continue 
-                
-            # Z-Achse
-            if dir_z != 0:
-                tz1 = (z_min - robot_pos[2]) / dir_z
-                tz2 = (z_max - robot_pos[2]) / dir_z
-                t_enter = max(t_enter, min(tz1, tz2))
-                t_exit = min(t_exit, max(tz1, tz2))
-            elif robot_pos[2] < z_min or robot_pos[2] > z_max:
-                continue 
-                
-            # 5. SCHNITTPUNKT-EVALUIERUNG
-            if t_enter <= t_exit and t_exit >= 0 and t_enter <= 1:
-                return True 
-                
-        return False
+        return False # Sicht frei
     
 
-    def _calculate_obstacle_penalty(self, formation, obstacle_coords):
+    def _calculate_obstacle_penalty(self, formation):
         penalty = 0.0
         
-        # Werte für deine Parameter
-        d_safe = self.params.get('d_safe', 2.0)
-        # Erhöht auf 0.3 (30cm Roboter-Radius), damit er nicht mal die Wand berührt
-        d_crash = self.params.get('d_crash', 0.3) 
-
-        for i in range(self.num_robots):
-            rx, ry = formation[i*2], formation[i*2+1]
-            
-            # Finde die geringste Distanz des Roboters zu IRGENDEINEM Hindernis
-            min_d_obs = float('inf')
-            
-            for obs in obstacle_coords:
-                # 1. ROBUSTE DATENEXTRAKTION (Erkennt jetzt das 20x15 Gebäude!)
-                if isinstance(obs, dict):
-                    cx = obs.get('x', 0.0)
-                    cy = obs.get('y', 0.0)
-                    sx = obs.get('s', 2.0)
-                    sy = obs.get('s', 2.0)
-                elif len(obs) == 6:
-                    # Dein neues Format: [x, y, z, size_x, size_y, size_z]
-                    cx, cy = obs[0], obs[1]
-                    sx, sy = obs[3], obs[4]
-                else:
-                    # Altes Format Fallback
-                    cx, cy = obs[0], obs[1]
-                    sx, sy = 2.0, 2.0 
-                
-                # 2. Euklidische Distanz zur Außenkante des Quaders (AABB)
-                dx = max(0.0, abs(rx - cx) - (sx / 2.0))
-                dy = max(0.0, abs(ry - cy) - (sy / 2.0))
-                d_obs = math.hypot(dx, dy)
-                
-                if d_obs < min_d_obs:
-                    min_d_obs = d_obs
-            
-            # 3. Die unbarmherzige Wand
-            if min_d_obs <= d_crash:
-                # Partikel ist physisch im Hindernis oder berührt die Wand -> unendliche Kosten
-                return float('inf') 
-            elif min_d_obs < d_safe:
-                # Partikel ist im Potenzialfeld -> exponentielle Strafe
-                penalty += ((1.0 / min_d_obs) - (1.0 / d_safe)) ** 2
+        # 1. Formation [x1, y1, x2, y2, ...] in zwei Arrays splitten
+        rx_array = formation[0::2]
+        ry_array = formation[1::2]
+        
+        # 2. Vektorisierte Abfrage an dein ESDF!
+        distances, _ = self.esdf_map.get_distance_and_angle_batch(rx_array, ry_array)
+        
+        # 3. Penalty berechnen
+        for d_obs in distances:
+            # -1.0 ist der Rückgabewert deiner Klasse, wenn Partikel außerhalb der Karte ist
+            if d_obs <= self.d_crash or d_obs < 0.0:
+                return float('inf')  # Harter Crash oder Map verlassen
+            elif d_obs < self.d_safe:
+                penalty += ((1.0 / d_obs) - (1.0 / self.d_safe)) ** 2
                 
         return penalty
 
