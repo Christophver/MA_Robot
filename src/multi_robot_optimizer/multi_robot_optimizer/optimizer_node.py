@@ -6,10 +6,17 @@ import time
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 import scipy.ndimage as ndimage
+import csv
+import os
+import sys
+
 
 # ROS 2 Messages
 from visualization_msgs.msg import Marker, MarkerArray
 from nav_msgs.msg import OccupancyGrid
+from geometry_msgs.msg import Point
+from std_msgs.msg import ColorRGBA
+from geometry_msgs.msg import PoseArray
 
 # Eigene Imports
 from multi_robot_optimizer.pso_algorithm import SwarmOptimizer, ESDFMapVectorized
@@ -18,12 +25,6 @@ class OptimizerNode(Node):
     def __init__(self):
         super().__init__('formation_optimizer_node')
 
-        # --- HIER: DIE DEFINITION DES MESSOBJEKTS ---
-        # (Füge hier die Zeile ein, die dir dein image_to_ros.py ausspuckt!)
-        self.target_obstacles = [[0.0, 0.0, 5.0, 20.0, 15.0, 10.0]]
-        
-        # avoidance_obstacles WURDEN ENTFERNT -> Das übernimmt jetzt das OccupancyGrid!
-        
         # ==========================================
         # Schritt 1: Dateneingabe & Parameter
         # ==========================================
@@ -38,6 +39,15 @@ class OptimizerNode(Node):
         self.declare_parameter('inertia_weight', 0.5)
         self.declare_parameter('d_safe', 2.0)
         self.declare_parameter('d_crash', 0.15) 
+
+        # ==========================================
+        # STATISTIK-MODUS SCHALTER (An/Aus)
+        # ==========================================
+        self.enable_batch_evaluation = True  # <--- HIER AN/AUS SCHALTEN (True/False)
+        self.current_run = 1
+        self.total_runs = 3                # Anzahl der Durchläufe im Batch-Modus
+        self.experiment_results = []         # Speicher für die CSV-Daten
+        # ==========================================
         
         params = {
             'w_crlb': self.get_parameter('w_crlb').value,
@@ -52,17 +62,24 @@ class OptimizerNode(Node):
             'd_safe': self.get_parameter('d_safe').value,
             'd_crash': self.get_parameter('d_crash').value,
         }
-        
+
         self.optimizer = SwarmOptimizer(params)
         
-        # ROS Publisher
+        # ROS Publisher für die RViz-Visualisierung
         self.marker_pub = self.create_publisher(MarkerArray, 'formation_markers', 10)
-        self.obstacle_pub = self.create_publisher(MarkerArray, 'obstacle_markers', 10)
-
-        # NEU: ROS Subscriber für die Map
+        
+        # ==========================================
+        # Schritt 2: Subscriber & Initialisierung
+        # ==========================================
+        self.all_drones = np.array([])  # Wird über das Topic gefüllt
+        
         self.map_received = False
+        self.drones_received = False
+        
         self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
+        self.drone_sub = self.create_subscription(PoseArray, '/drone_targets', self.drone_callback, 10)
 
+        # Farben für die Cluster-Visualisierung
         self.cluster_colors = [
             (0.122, 0.467, 0.706), (0.682, 0.780, 0.910), (1.000, 0.498, 0.055),
             (1.000, 0.733, 0.471), (0.173, 0.627, 0.173), (0.596, 0.875, 0.541),
@@ -73,39 +90,13 @@ class OptimizerNode(Node):
             (0.090, 0.745, 0.812), (0.620, 0.855, 0.898),
         ]
 
+        # Initiale Posen der Bodenroboter
         self.start_robot_poses = [
             0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 
             0.0, 1.0, 1.0, 1.0, 2.0, 1.0   
         ]
         
-        # --- Drohnen generieren (nur rund um das Zielobjekt!) ---
-        generated_drones_3d = []
-        y_coords = np.linspace(-7.0, 7.0, 5)
-        z_coords = np.linspace(0.5, 9.5, 2)
-        
-        for x in [-11.0, 11.0]:
-            for y in y_coords:
-                for z in z_coords:
-                    generated_drones_3d.append([float(x), float(y), float(z)])
-                    
-        x_coords = np.linspace(-9.5, 9.5, 7)
-        for y in [-8.5, 8.5]:
-            for x in x_coords:
-                for z in z_coords:
-                    generated_drones_3d.append([float(x), float(y), float(z)])
-
-        self.get_logger().info(f"Test-Szenario generiert: {len(generated_drones_3d)} Drohnen-Messpunkte erzeugt.")
-        
-        drones_6d = []
-        main_obstacle = self.target_obstacles[0] 
-        
-        for pos in generated_drones_3d:
-            pose = self.calculate_drone_pose_facing_wall(pos, main_obstacle)
-            drones_6d.append(pose)
-            
-        self.all_drones = np.array(drones_6d)
-        
-        # Initialisierung
+        # Initialisierung der PSO-Zustandsvariablen
         self.current_k = 1
         self.optimization_done = False 
         self.k_history = []
@@ -114,9 +105,11 @@ class OptimizerNode(Node):
         self.previous_total_cost = float('inf')
         self.best_marker_array = None 
         
-        # WICHTIG: Timer ist jetzt auf None! Er wird erst gestartet, wenn die Karte da ist.
         self.timer = None
-        self.get_logger().info("Warte auf 2.5D Karte vom Topic '/map'...")
+        self.get_logger().info("Warte auf Karte (/map) und Drohnen (/drone_targets)...")
+        
+        # Prüft sofort, ob evtl. schon Daten anliegen (für schnelle Neustarts)
+        self.check_start_condition()
 
     def map_callback(self, msg):
         """Wird aufgerufen, sobald image_to_ros.py die Karte publiziert."""
@@ -136,7 +129,9 @@ class OptimizerNode(Node):
         grid_2d = grid_1d.reshape((height, width))
 
         # 2. Binäres Grid für den Bresenham LoS-Check erstellen (0 = Frei, 1 = Wand)
-        self.binary_grid = np.where(grid_2d > 50, 1, 0).astype(np.uint8)
+        raw_binary = np.where(grid_2d > 50, 1, 0)
+        # NEU: Zwingt das Array in einen sauberen C-Speicherblock für Numba!
+        self.binary_grid = np.ascontiguousarray(raw_binary, dtype=np.int8)
 
         # 3. ESDF berechnen (Distanz zu Wänden)
         free_space = 1 - self.binary_grid
@@ -153,16 +148,56 @@ class OptimizerNode(Node):
         self.optimizer.map_origin_y = self.map_origin_y
 
         self.map_received = True
-        self.get_logger().info("Umgebung erfolgreich initialisiert. Starte PSO...")
+        self.get_logger().info("Umgebung erfolgreich initialisiert. Erzeuge RViz Debug-Ansicht...")
+        self.check_start_condition()
+
+        # 1. Debug Map dauerhaft an RViz senden (alle 2 Sekunden)
+        # So kann RViz die Nachricht nicht mehr verpassen!
+        self.debug_timer = self.create_timer(2.0, self.publish_rviz_debug_map)
 
         # JETZT ERST den Loop starten!
         self.timer = self.create_timer(4.0, self.evaluate_next_k)
+        
+    def check_start_condition(self):
+        """Startet die PSO-Schleife erst, wenn Karte UND Drohnen-Posen existieren."""
+        if self.map_received and self.drones_received and self.timer is None:
+            self.get_logger().info("🚀 Beide Datenströme bereit. Starte Optimierungsschleife...")
+            # Optional: Hier wieder dein rviz debug grid aktivieren falls gewünscht
+            self.timer = self.create_timer(4.0, self.evaluate_next_k)
+
+    def drone_callback(self, msg):
+        """Empfängt die maßgeschneiderten Drohnen-Positionen direkt von OpenCV."""
+        if self.drones_received:
+            return
+
+        drones_6d = []
+        for pose in msg.poses:
+            dx = pose.position.x
+            dy = pose.position.y
+            dz = pose.position.z
+            
+            # Rekonstruktion des Yaw aus dem Quaternion
+            yaw = 2.0 * math.atan2(pose.orientation.z, pose.orientation.w)
+            drones_6d.append([dx, dy, dz, 0.0, 0.0, yaw])
+
+        self.all_drones = np.array(drones_6d)
+        self.drones_received = True
+        self.get_logger().info(f"✅ {len(self.all_drones)} Ziel-Drohnen erfolgreich registriert!")
+        
+        # Prüfen, ob wir loslegen können
+        self.check_start_condition()
+
+    
 
 
     def evaluate_next_k(self):
-        self.publish_obstacles()
+        
+        self.publish_drone_targets()
 
         start_time = time.perf_counter()
+
+        
+
 
         if self.optimization_done:
             if self.best_marker_array is not None:
@@ -178,17 +213,30 @@ class OptimizerNode(Node):
         self.get_logger().info(f"Starte Evaluierung für k = {self.current_k}")
         
         clusters = []
+        labels = []  # NEU: Hier speichern wir die Zuweisungen für RViz
+            
+
         if self.current_k == 1:
             clusters.append(self.all_drones.tolist())
+            # Bei k=1 sind alle Drohnen im selben Cluster (Index 0)
+            labels = [0] * len(self.all_drones) 
         else:
-            kmeans = KMeans(n_clusters=self.current_k, random_state=42, n_init=10).fit(self.all_drones)
+            # PRO-TIPP für deine Arbeit: Nur über X, Y, Z clustern! ([:, :3])
+            # Winkel (Yaw) haben eine andere Skalierung als Meter und würden das Clustering verfälschen.
+            kmeans = KMeans(n_clusters=self.current_k, random_state=42, n_init=10).fit(self.all_drones[:, :3])
+            
+            labels = kmeans.labels_  # Das ist unser Array für RViz!
+            
             for i in range(self.current_k):
                 clusters.append(self.all_drones[kmeans.labels_ == i].tolist())
+
+        self.publish_drone_targets(labels=labels)
                 
         current_total_cost = 0.0
         formations = []
         current_cluster_costs = [] 
         valid_solution = True
+        
         
         # Dynamisch w_move auslesen, sonst 0.1
         w_move = self.get_parameter('w_move').value if self.has_parameter('w_move') else 0.1
@@ -221,6 +269,7 @@ class OptimizerNode(Node):
             formations.append(best_form)
             current_cluster_costs.append(cluster_total_cost)
             
+
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
         self.get_logger().info(f"⏱️ Evaluierung für k={self.current_k} abgeschlossen in {elapsed_time:.3f} Sekunden.")
@@ -244,9 +293,18 @@ class OptimizerNode(Node):
             self.get_logger().info(f"\n+++ ERGEBNIS +++")
             self.get_logger().info(f"Beste Formation ermittelt für k = {self.current_k - 1} Cluster.")
             
-            self.optimization_done = True 
-            self.plot_results() 
-            return
+            # ===== NEUER BATCH-LOGIK BLOCK =====
+            if self.enable_batch_evaluation:
+                # Schalter ist AN: Daten des besten k speichern und Loop neu starten.
+                # WICHTIG: plot_results() wird hier übersprungen, damit der Code nicht pausiert!
+                self.finish_run(final_k=self.current_k - 1, final_cost=self.previous_total_cost)
+                return 
+            else:
+                # Schalter ist AUS: Normales Verhalten für Vorführungen
+                self.optimization_done = True 
+                self.plot_results() 
+                return
+            # ===================================
 
         self.get_logger().info("--> NEIN, Erhöhe k = k + 1")
         
@@ -255,7 +313,7 @@ class OptimizerNode(Node):
         if self.best_marker_array is not None:
             self.marker_pub.publish(self.best_marker_array)
                 
-        self.publish_obstacles()
+        
         
         sorted_clusters = []
         for c_drones, form in zip(clusters, formations):
@@ -276,39 +334,55 @@ class OptimizerNode(Node):
         self.previous_total_cost = current_total_cost
         self.current_k += 1
 
-    def publish_obstacles(self):
+    
+
+
+    def publish_drone_targets(self, labels=None):
+        """Sendet die Drohnen an RViz und färbt sie nach Cluster-Zugehörigkeit (k)."""
         marker_array = MarkerArray()
         
-        def create_markers(obs_list, r, g, b):
-            for obs in obs_list:
-                marker = Marker()
-                marker.header.frame_id = "map"
-                marker.header.stamp = self.get_clock().now().to_msg()
-                marker.ns = "obstacles"
-                marker.id = len(marker_array.markers) 
-                marker.type = Marker.CUBE
-                marker.action = Marker.ADD
+        for idx, d in enumerate(self.all_drones):
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = "drone_targets"
+            marker.id = idx
+            marker.type = Marker.SPHERE
+            marker.action = Marker.ADD
+            
+            marker.pose.position.x = float(d[0])
+            marker.pose.position.y = float(d[1])
+            marker.pose.position.z = float(d[2])
+            marker.pose.orientation.w = 1.0
+            
+            # Form und Größe
+            marker.scale.x = 0.5
+            marker.scale.y = 0.5
+            marker.scale.z = 0.5
+            
+            # --- FARB-LOGIK ---
+            if labels is not None and len(labels) == len(self.all_drones):
+                # Wir haben eine Cluster-Zuweisung für diese Drohne!
+                cluster_id = int(labels[idx])
+                c_color = self.cluster_colors[cluster_id % len(self.cluster_colors)]
                 
-                marker.pose.position.x = float(obs[0])
-                marker.pose.position.y = float(obs[1])
-                marker.pose.position.z = float(obs[2])
-                marker.pose.orientation.w = 1.0 
+                marker.color.r = float(c_color[0])
+                marker.color.g = float(c_color[1])
+                marker.color.b = float(c_color[2])
+                marker.color.a = 1.0 
+            else:
+                # Fallback (z.B. am Anfang, wenn noch nicht geclustert wurde)
+                marker.color.r = 0.5
+                marker.color.g = 0.5
+                marker.color.b = 0.5
+                marker.color.a = 0.8
+            
+            marker_array.markers.append(marker)
 
-                marker.scale.x = float(obs[3])
-                marker.scale.y = float(obs[4])
-                marker.scale.z = float(obs[5])
-
-                marker.color.r = r
-                marker.color.g = g
-                marker.color.b = b
-                marker.color.a = 0.7 
-
-                marker_array.markers.append(marker)
-
-        # NUR NOCH DAS ZIELOBJEKT ZEICHNEN (Der Rest ist in der OccupancyGrid Map)
-        create_markers(self.target_obstacles, 0.2, 0.8, 0.2)
-        
-        self.obstacle_pub.publish(marker_array)
+        if not hasattr(self, 'drone_target_pub'):
+            self.drone_target_pub = self.create_publisher(MarkerArray, 'drone_targets_rviz', 10)
+            
+        self.drone_target_pub.publish(marker_array)
 
     def add_cluster_markers(self, marker_array, drones, formation, drone_color, robot_color, base_id):
         for idx, d in enumerate(drones):
@@ -380,6 +454,69 @@ class OptimizerNode(Node):
         self.get_logger().info(f"Plot wurde erfolgreich gespeichert unter: {save_path}")
         plt.show()
 
+
+
+    def publish_rviz_debug_map(self):
+        """Erzeugt eine farbige Kachel-Karte für RViz zur Überprüfung des ESDFs."""
+        # Wir fassen 5x5 Pixel zusammen (Downsampling), damit RViz nicht abstürzt
+        step = 5 
+        
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = "esdf_gradient"
+        marker.id = 0
+        marker.type = Marker.CUBE_LIST
+        marker.action = Marker.ADD
+
+        # Größe einer Kachel im Raum
+        marker.scale.x = float(self.map_resolution * step)
+        marker.scale.y = float(self.map_resolution * step)
+        marker.scale.z = 0.05
+
+        points = []
+        colors = []
+
+        # Maximalen Distanzwert für die Skalierung des Grüns finden
+        max_dist = float(np.max(self.esdf_matrix))
+        if max_dist == 0: max_dist = 1.0
+
+        for y in range(0, self.binary_grid.shape[0], step):
+            for x in range(0, self.binary_grid.shape[1], step):
+                dist = self.esdf_matrix[y, x]
+                is_obstacle = self.binary_grid[y, x] > 0
+
+                p = Point()
+                # Weltkoordinate für die Kachel berechnen
+                p.x = float(self.map_origin_x + (x + step/2.0) * self.map_resolution)
+                p.y = float(self.map_origin_y + (y + step/2.0) * self.map_resolution)
+                p.z = 0.0
+                
+                c = ColorRGBA()
+                c.a = 0.9 # volle deckkraft
+                
+                if is_obstacle:
+                    # Hindernis = Rot
+                    c.r, c.g, c.b = 1.0, 0.0, 0.0
+                else:
+                    # ESDF = Grüner Gradient! (Je höher die Distanz, desto grüner)
+                    intensity = dist / max_dist
+                    c.r = 0.0
+                    c.g = float(intensity) 
+                    c.b = 0.0
+
+                points.append(p)
+                colors.append(c)
+
+        marker.points = points
+        marker.colors = colors
+
+        if not hasattr(self, 'debug_pub'):
+            self.debug_pub = self.create_publisher(Marker, 'debug_grid', 1)
+            
+        self.debug_pub.publish(marker)
+        self.get_logger().info("✅ Debug-Grid (Grüner Gradient) an RViz gesendet!")
+
     def calculate_drone_pose_facing_wall(self, drone_pos, obs):
         if isinstance(obs, dict):
             cx, cy = obs.get('x', 0.0), obs.get('y', 0.0)
@@ -412,6 +549,77 @@ class OptimizerNode(Node):
         roll = 0.0 
 
         return [dx, dy, dz, roll, pitch, yaw]
+    
+
+
+
+    def finish_run(self, final_k, final_cost):
+        """Speichert die Daten des aktuellen Laufs inklusive k-Historie und triggert den nächsten."""
+        
+        # Wir greifen direkt auf deine bestehenden Plot-Variablen zu und kopieren sie!
+        self.experiment_results.append({
+            'run': self.current_run,
+            'k': final_k,
+            'cost': final_cost,
+            'k_history': list(self.k_history),              # z.B. [1, 2, 3, 4]
+            'cost_history': list(self.total_cost_history)   # z.B. [1500, 1200, 800, 950]
+        })
+        
+        self.get_logger().info(f"🏁 --- Durchlauf {self.current_run}/{self.total_runs} abgeschlossen! (k={final_k}, J={final_cost:.2f}) ---")
+
+        if self.current_run < self.total_runs:
+            self.current_run += 1
+            self.reset_for_next_run()
+        else:
+            self.evaluate_statistics_and_shutdown()
+
+    # reset_for_next_run bleibt exakt so wie es ist! (Dort setzt du die Listen ja schon auf [] zurück)
+
+    def reset_for_next_run(self):
+        """Setzt die Variablen zurück und startet die Schleife von vorn."""
+        self.current_k = 1  
+        self.previous_total_cost = float('inf')
+        self.k_history = []
+        self.total_cost_history = []
+        self.cluster_costs_history = {}
+        
+        self.get_logger().info(f"🔄 Starte neuen Durchlauf ({self.current_run}). Setze k=1.")
+        
+        # Startet den Loop wieder nach 1 Sekunde Pause
+        self.timer = self.create_timer(1.0, self.evaluate_next_k)
+
+    def evaluate_statistics_and_shutdown(self):
+        """Wertet die Daten aus, schreibt die CSV und beendet ROS."""
+        costs = [res['cost'] for res in self.experiment_results]
+        ks = [res['k'] for res in self.experiment_results]
+
+        self.get_logger().info("\n=========================================")
+        self.get_logger().info("🏆 EXPERIMENT ABGESCHLOSSEN 🏆")
+        self.get_logger().info(f"Gesamt-Durchläufe: {len(self.experiment_results)}")
+        self.get_logger().info(f"Kosten (J_total): Durchschnitt = {np.mean(costs):.2f}, StdAbw = {np.std(costs):.2f}")
+        self.get_logger().info(f"Gewähltes k:      Durchschnitt = {np.mean(ks):.2f}, StdAbw = {np.std(ks):.2f}")
+        self.get_logger().info("=========================================\n")
+
+        # CSV Export
+        file_path = os.path.expanduser('~/map_ws/pso_evaluation_results.csv')
+        try:
+            with open(file_path, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                # Spaltenköpfe erweitert um die Verläufe
+                writer.writerow(['Run_ID', 'Gewaehltes_k', 'Finale_Kosten_J', 'k_Verlauf', 'Kosten_Verlauf'])
+                
+                for res in self.experiment_results:
+                    # Wir wandeln die Listen in Strings um, damit sie in eine CSV-Zelle passen
+                    k_hist_str = str(res['k_history'])
+                    cost_hist_str = str(res['cost_history'])
+                    
+                    writer.writerow([res['run'], res['k'], res['cost'], k_hist_str, cost_hist_str])
+                    
+            self.get_logger().info(f"💾 CSV erfolgreich gespeichert unter: {file_path}")
+        except Exception as e:
+            self.get_logger().error(f"Fehler beim Speichern der CSV: {e}")
+
+        sys.exit(0)
 
 def main(args=None):
     rclpy.init(args=args)
@@ -419,7 +627,17 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        pass
+        # Dieser Block wird aufgerufen, wenn du Strg + C drückst!
+        node.get_logger().info("\n⚠️ Experiment manuell abgebrochen (Strg+C)!")
+        
+        # Prüfen, ob wir im Batch-Modus sind und schon Daten gesammelt haben
+        if hasattr(node, 'enable_batch_evaluation') and node.enable_batch_evaluation:
+            if len(node.experiment_results) > 0:
+                node.get_logger().info(f"Speichere die bisherigen {len(node.experiment_results)} Durchläufe ab...")
+                # Führt die Auswertung durch, schreibt die CSV und beendet sich (sys.exit)
+                node.evaluate_statistics_and_shutdown()
+            else:
+                node.get_logger().info("Noch kein Durchlauf vollständig beendet. Beende ohne Speichern.")
     finally:
         node.destroy_node()
         rclpy.try_shutdown()
