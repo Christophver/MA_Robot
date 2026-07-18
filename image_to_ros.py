@@ -8,6 +8,9 @@ import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid
 from std_msgs.msg import Header
+from sklearn.cluster import KMeans
+from geometry_msgs.msg import PoseArray, Pose
+import scipy.ndimage as ndimage
 
 # ==========================================
 # KONFIGURATION (Hier anpassen!)
@@ -137,50 +140,97 @@ def main():
     # ==========================================
     print("\nErstelle 2.5D OccupancyGrid...")
     obstacle_grid = np.zeros((h, w), dtype=np.uint8)
-    
-    # Gebäude gefüllt einzeichnen (255 = Wand)
     cv2.drawContours(obstacle_grid, contours, -1, 255, thickness=cv2.FILLED)
-
-    # Y-Achse spiegeln (OpenCV -> ROS Konvention)
     flipped_grid = np.flipud(obstacle_grid)
 
-    # ROS Standard: 0 = Frei, 100 = Hindernis
     flat_grid = flipped_grid.flatten()
     ros_grid = np.where(flat_grid > 0, 100, 0).astype(np.int8)
 
     # ==========================================
-    # 9. ROS 2 Map Publisher
+    # NEU: Drohnen-Ring NUR um das Messobjekt berechnen
+    # ==========================================
+    print("Berechne maßgeschneiderte Drohnen-Positionen an der Iso-Kontur...")
+    target_mask = np.zeros((h, w), dtype=np.uint8)
+    cv2.drawContours(target_mask, [contours[selected_target_idx]], -1, 255, thickness=cv2.FILLED)
+    flipped_target = np.flipud(target_mask)
+
+    # Lokales ESDF nur für das Zielobjekt in Metern
+    target_esdf = ndimage.distance_transform_edt(flipped_target == 0) * PIXEL_TO_METER
+    ring_mask = (target_esdf > 2.8) & (target_esdf < 3.2)
+
+    # Nullpunkt für die Weltkoordinaten
+    origin_x = - (center_x * PIXEL_TO_METER)
+    origin_y = - (center_y * PIXEL_TO_METER)
+
+    valid_points = []
+    for y in range(ring_mask.shape[0]):
+        for x in range(ring_mask.shape[1]):
+            if ring_mask[y, x]:
+                wx = origin_x + (x * PIXEL_TO_METER)
+                wy = origin_y + (y * PIXEL_TO_METER)
+                valid_points.append([wx, wy])
+
+    valid_points = np.array(valid_points)
+    drone_poses_list = []
+
+    if len(valid_points) >= 16:
+        kmeans = KMeans(n_clusters=16, random_state=42, n_init=10).fit(valid_points)
+        z_levels = [1.0, BUILDING_HEIGHT - 1.0] # 1m über Boden, 1m unter Dach
+        
+        # Bounding Box Zentrum des Zielobjekts für den Blickwinkel (Facing Wall)
+        x_box, y_box, bw, bh = cv2.boundingRect(contours[selected_target_idx])
+        tcx = ((x_box + bw/2.0) - center_x) * PIXEL_TO_METER
+        tcy = ((center_y) - (y_box + bh/2.0)) * PIXEL_TO_METER
+
+        for center in kmeans.cluster_centers_:
+            for z in z_levels:
+                # Blickwinkel zur Gebäudemitte berechnen (Yaw)
+                vx = tcx - center[0]
+                vy = tcy - center[1]
+                yaw = math.atan2(vy, vx)
+                drone_poses_list.append([center[0], center[1], z, yaw])
+    else:
+        print("WARNUNG: Zielkontur zu klein für stabilen Drohnen-Ring!")
+
+    # ==========================================
+    # 9. ROS 2 Node initialisieren und publizieren
     # ==========================================
     rclpy.init()
     node = rclpy.create_node('map_publisher_node')
     map_pub = node.create_publisher(OccupancyGrid, '/map', 10)
+    drone_pub = node.create_publisher(PoseArray, '/drone_targets', 10)
 
+    # OccupancyGrid Nachricht
     grid_msg = OccupancyGrid()
     grid_msg.header = Header(frame_id="map", stamp=node.get_clock().now().to_msg())
     grid_msg.info.resolution = PIXEL_TO_METER
     grid_msg.info.width = w
     grid_msg.info.height = h
-
-    # Ursprung setzen
-    grid_msg.info.origin.position.x = - (center_x * PIXEL_TO_METER)
-    grid_msg.info.origin.position.y = - (center_y * PIXEL_TO_METER)
-    grid_msg.info.origin.position.z = 0.0
-
+    grid_msg.info.origin.position.x = origin_x
+    grid_msg.info.origin.position.y = origin_y
     grid_msg.data = ros_grid.tolist()
 
-    print("Publiziere Map auf Topic '/map'...")
+    # PoseArray Nachricht für Drohnen
+    pose_array_msg = PoseArray()
+    pose_array_msg.header = Header(frame_id="map", stamp=node.get_clock().now().to_msg())
     
-    # Sende die Karte mehrmals, um sicherzustellen, dass die Optimizer-Node sie empfängt
+    for dp in drone_poses_list:
+        pose = Pose()
+        pose.position.x = float(dp[0])
+        pose.position.y = float(dp[1])
+        pose.position.z = float(dp[2])
+        # Orientierung aus Yaw-Winkel generieren (Quaternion)
+        pose.orientation.z = math.sin(dp[3] / 2.0)
+        pose.orientation.w = math.cos(dp[3] / 2.0)
+        pose_array_msg.poses.append(pose)
+
+    print("Publiziere Map und Drohnen-Messpunkte...")
     for _ in range(5):
         map_pub.publish(grid_msg)
+        drone_pub.publish(pose_array_msg)
         time.sleep(0.5)
 
-    print("\n\n==========================================")
-    print("Kopiere DIES in deine optimizer_node.py (__init__):")
-    print("==========================================")
-    print(f"self.target_obstacles = {target_obstacles}")
-    print("# self.avoidance_obstacles WIRD NICHT MEHR BENÖTIGT (Das macht jetzt die ROS-Map!)")
-    
+    print("✅ Übertragung erfolgreich abgeschlossen.")
     node.destroy_node()
     rclpy.shutdown()
 

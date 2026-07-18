@@ -1,5 +1,8 @@
 import numpy as np
 import math
+from numba import njit
+
+
 
 from skimage.draw import line # Wichtig für den Bresenham!
 
@@ -65,28 +68,26 @@ class ESDFMapVectorized:
 
         return distance_meters, target_yaw
     
-    
+
 class SwarmOptimizer:
-    def __init__(self, params, esdf_map, binary_grid, map_resolution, map_origin_x, map_origin_y):
+    def __init__(self, params):
         self.params = params
         self.num_robots = 3 
         
-        # NEU: Karten-Daten speichern
-        self.esdf_map = esdf_map
-        self.binary_grid = binary_grid
-        self.map_resolution = map_resolution
-        self.map_origin_x = map_origin_x
-        self.map_origin_y = map_origin_y
-        
-        self.grid_height, self.grid_width = self.binary_grid.shape
+        # Karten-Daten (werden von der Node injiziert, sobald sie eintreffen)
+        self.esdf_map = None
+        self.binary_grid = None
+        self.map_resolution = 0.1
+        self.map_origin_x = 0.0
+        self.map_origin_y = 0.0
         
         # Lade Schwellenwerte einmalig zur Optimierung
         self.d_safe = self.params.get('d_safe', 2.0)
         self.d_crash = self.params.get('d_crash', 0.15)
 
-    def run_pso(self, drone_cluster, start_robot_poses, obstacle_coords):
+    def run_pso(self, drone_cluster, start_robot_poses):
         cluster_center = np.mean(drone_cluster, axis=0) 
-        self.obstacle_coords = obstacle_coords
+        
         
         # 1. Anzahl der Roboter dynamisch auslesen (x,y pro Roboter)
         self.num_robots = len(start_robot_poses) // 2
@@ -101,6 +102,18 @@ class SwarmOptimizer:
         for i in range(self.num_robots):
             particles[:, i*2] += cluster_center[0]     
             particles[:, i*2+1] += cluster_center[1]   
+
+        # NEU: Partikel zwingend auf der Karte halten (verhindert Out-of-Bounds)
+        grid_height, grid_width = self.binary_grid.shape  # <-- NEU: Hier holen wir die Größe!
+        
+        map_min_x = self.map_origin_x + 1.0
+        map_max_x = self.map_origin_x + (grid_width * self.map_resolution) - 1.0
+        map_min_y = self.map_origin_y + 1.0
+        map_max_y = self.map_origin_y + (grid_height * self.map_resolution) - 1.0
+
+        for i in range(self.num_robots):
+            particles[:, i*2] = np.clip(particles[:, i*2], map_min_x, map_max_x)
+            particles[:, i*2+1] = np.clip(particles[:, i*2+1], map_min_y, map_max_y)
             
         best_formation = None
         
@@ -125,12 +138,13 @@ class SwarmOptimizer:
         c1 = self.params.get('c1', 1.5)             
         c2 = self.params.get('c2', 1.5)             
         
+
         for iteration in range(max_iterations):
             improved = False
             
             # 1. Fitness evaluieren und pBest/gBest updaten
             for i in range(num_particles):
-                cost = self._calculate_cost(particles[i], drone_cluster, obstacle_coords)
+                cost = self._calculate_cost(particles[i], drone_cluster)
                 
                 # Update Personal Best (lokales Optimum des Partikels)
                 if cost < personal_best_costs[i]:
@@ -142,7 +156,7 @@ class SwarmOptimizer:
                     best_cost = cost
                     global_best_position = particles[i].copy()
                     improved = True
-            
+                    
 
             # ==========================================
             # NEUER SICHERHEITSCHECK falls alle Partikel im Hindernis landen
@@ -181,9 +195,9 @@ class SwarmOptimizer:
             if stagnation_counter >= patience:
                 break
         
-        return global_best_position, best_cost
+        return global_best_position, best_cost,
     
-    def _calculate_cost(self, formation, drone_cluster, obstacle_coords, use_minimax=False):
+    def _calculate_cost(self, formation, drone_cluster, use_minimax=False):
         crlb_values = []
         
         for drone_pos in drone_cluster:
@@ -195,7 +209,8 @@ class SwarmOptimizer:
         else:
             base_cost = sum(crlb_values)
             
-        c_obs = self._calculate_obstacle_penalty(formation, obstacle_coords)
+        # HIER: obstacle_coords entfernt! Es wird nur noch formation übergeben.
+        c_obs = self._calculate_obstacle_penalty(formation)
         c_inter = self._calculate_inter_robot_penalty(formation)
         
         return base_cost + c_obs + c_inter
@@ -270,6 +285,7 @@ class SwarmOptimizer:
             return float(1e9)
 
         # 2. CRLB für JEDEN TRACKER berechnen (nicht mehr pro Roboter!)
+        blocked_count = 0  # NEU: Wir zählen, wie viele blind sind!
         for tracker_pos in tracker_positions:
             tx, ty, tz = tracker_pos
             
@@ -280,11 +296,14 @@ class SwarmOptimizer:
             d_3d = math.sqrt(dx**2 + dy**2 + dz**2)
             
             if d_3d > 30.0 or d_3d == 0:
+                blocked_count += 1
                 continue 
-                
-            # LoS-Check (Hindernisprüfung)
+
+            
+            # LoS-Check (Hindernisprüfung) in purem Python
             if self._is_los_blocked([tx, ty, tz], drone_pose[:3]):
-                continue 
+                blocked_count += 1
+                continue
 
             # --- POSITIONS-BLOCK ---
             sigma_pos = 0.2 + 0.3 * d_3d
@@ -319,7 +338,7 @@ class SwarmOptimizer:
             # 1. Determinante prüfen (Toleranz etwas strikter setzen)
             det = np.linalg.det(J)
             if det < 1e-5 or math.isnan(det):
-                return float(1e9) 
+                return float(1e8) + (blocked_count * 1e7)
                 
             # 2. Invertieren und Spur berechnen
             J_inv = np.linalg.inv(J)
@@ -338,29 +357,37 @@ class SwarmOptimizer:
             
         
     
-    def _is_los_blocked(self, robot_pos, drone_pos):
-        """Prüft Sichtlinie via 2D Bresenham auf dem binären Grid."""
-        # 1. Welt- in Pixelkoordinaten umwandeln
-        px_r = int((robot_pos[0] - self.map_origin_x) / self.map_resolution)
-        py_r = int((robot_pos[1] - self.map_origin_y) / self.map_resolution)
-        
-        px_d = int((drone_pos[0] - self.map_origin_x) / self.map_resolution)
-        py_d = int((drone_pos[1] - self.map_origin_y) / self.map_resolution)
-        
-        # 2. Pixel der Linie berechnen (Bresenham)
-        # Achtung: skimage erwartet (row, col) also (y, x)
-        rr, cc = line(py_d, px_d, py_r, px_r)
-        
-        # 3. Randschutz (außerhalb der Karte abschneiden)
-        valid = (rr >= 0) & (rr < self.grid_height) & (cc >= 0) & (cc < self.grid_width)
-        rr, cc = rr[valid], cc[valid]
-        
-        # 4. Kollisionsprüfung: Ist ein Pixel auf der Linie ein Hindernis?
-        if np.any(self.binary_grid[rr, cc] > 0):
-            return True # Blockiert!
-            
-        return False # Sicht frei
     
+    def _is_los_blocked(self, start_pos, end_pos):
+        """
+        Prüft die Sichtlinie. Nutzt das in C-optimierte skimage.draw.line
+        für maximale Vektorisierungs-Geschwindigkeit in Python.
+        """
+        # Weltkoordinaten in Pixel umrechnen
+        x0 = int((start_pos[0] - self.map_origin_x) / self.map_resolution)
+        y0 = int((start_pos[1] - self.map_origin_y) / self.map_resolution)
+        x1 = int((end_pos[0] - self.map_origin_x) / self.map_resolution)
+        y1 = int((end_pos[1] - self.map_origin_y) / self.map_resolution)
+
+        # skimage nutzt (Zeile, Spalte), also (y, x)
+        # Dieser Aufruf läuft komplett in C ab!
+        rr, cc = line(y0, x0, y1, x1)
+
+        height, width = self.binary_grid.shape
+
+        # Array-Grenzen sichern (Boolean Masking ist extrem schnell)
+        valid = (rr >= 0) & (rr < height) & (cc >= 0) & (cc < width)
+        rr, cc = rr[valid], cc[valid]
+
+        # Die ersten 3 Pixel ignorieren (Randschutz für die Drohne)
+        if len(rr) > 3:
+            rr = rr[3:]
+            cc = cc[3:]
+        elif len(rr) == 0:
+            return False # Leeres Array = keine Wand
+
+        # Vektorisierter Check auf Wände (läuft ebenfalls in C ab)
+        return bool(np.any(self.binary_grid[rr, cc] > 0))
 
     def _calculate_obstacle_penalty(self, formation):
         penalty = 0.0
@@ -374,12 +401,12 @@ class SwarmOptimizer:
         
         # 3. Penalty berechnen
         for d_obs in distances:
-            # -1.0 ist der Rückgabewert deiner Klasse, wenn Partikel außerhalb der Karte ist
-            if d_obs <= self.d_crash or d_obs < 0.0:
-                return float('inf')  # Harter Crash oder Map verlassen
+            if d_obs < 0.0:
+                penalty += 1e7  # NEU: Starke Strafe, aber kein inf!
+            elif d_obs <= self.d_crash:
+                penalty += 1e6  # NEU: Starke Strafe für Crash, aber Gradient bleibt erhalten!
             elif d_obs < self.d_safe:
                 penalty += ((1.0 / d_obs) - (1.0 / self.d_safe)) ** 2
-                
         return penalty
 
     def _calculate_inter_robot_penalty(self, formation):
@@ -399,7 +426,7 @@ class SwarmOptimizer:
                 
                 if dist <= d_crash:
                     # Physisch unmöglich -> harte Restriktion (Partikel verwerfen)
-                    return float('inf') 
+                    penalty += 1e6 
                 elif dist < d_min:
                     # Exponentieller Anstieg der Abstoßungskraft, je näher sie kommen
                     penalty += ((1.0 / dist) - (1.0 / d_min)) ** 2
