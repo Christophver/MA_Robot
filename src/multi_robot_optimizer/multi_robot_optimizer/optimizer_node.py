@@ -44,8 +44,9 @@ class OptimizerNode(Node):
         # STATISTIK-MODUS SCHALTER (An/Aus)
         # ==========================================
         self.enable_batch_evaluation = True  # <--- HIER AN/AUS SCHALTEN (True/False)
+        self.target_name = "Objekt_1"
         self.current_run = 1
-        self.total_runs = 3                # Anzahl der Durchläufe im Batch-Modus
+        self.total_runs = 10                # Anzahl der Durchläufe im Batch-Modus
         self.experiment_results = []         # Speicher für die CSV-Daten
         # ==========================================
         
@@ -558,6 +559,7 @@ class OptimizerNode(Node):
         
         # Wir greifen direkt auf deine bestehenden Plot-Variablen zu und kopieren sie!
         self.experiment_results.append({
+            'target': self.target_name,
             'run': self.current_run,
             'k': final_k,
             'cost': final_cost,
@@ -600,22 +602,30 @@ class OptimizerNode(Node):
         self.get_logger().info(f"Gewähltes k:      Durchschnitt = {np.mean(ks):.2f}, StdAbw = {np.std(ks):.2f}")
         self.get_logger().info("=========================================\n")
 
-        # CSV Export
+        # CSV Export (Append-Modus für mehrere Messobjekte)
         file_path = os.path.expanduser('~/map_ws/pso_evaluation_results.csv')
+        
+        # NEU: Prüfen, ob die Datei schon existiert
+        file_exists = os.path.isfile(file_path)
+        
         try:
-            with open(file_path, mode='w', newline='') as file:
+            # NEU: mode='a' (append) hängt Daten unten an, statt sie zu überschreiben
+            with open(file_path, mode='a', newline='') as file:
                 writer = csv.writer(file)
-                # Spaltenköpfe erweitert um die Verläufe
-                writer.writerow(['Run_ID', 'Gewaehltes_k', 'Finale_Kosten_J', 'k_Verlauf', 'Kosten_Verlauf'])
+                
+                # NEU: Spaltenköpfe NUR schreiben, wenn die Datei neu erstellt wird
+                if not file_exists:
+                    writer.writerow(['Messobjekt', 'Run_ID', 'Gewaehltes_k', 'Finale_Kosten_J', 'k_Verlauf', 'Kosten_Verlauf'])
                 
                 for res in self.experiment_results:
                     # Wir wandeln die Listen in Strings um, damit sie in eine CSV-Zelle passen
                     k_hist_str = str(res['k_history'])
                     cost_hist_str = str(res['cost_history'])
                     
-                    writer.writerow([res['run'], res['k'], res['cost'], k_hist_str, cost_hist_str])
+                    # NEU: res['target'] (das Messobjekt) wird als erste Spalte eingetragen
+                    writer.writerow([res['target'], res['run'], res['k'], res['cost'], k_hist_str, cost_hist_str])
                     
-            self.get_logger().info(f"💾 CSV erfolgreich gespeichert unter: {file_path}")
+            self.get_logger().info(f"💾 CSV erfolgreich gespeichert/erweitert unter: {file_path}")
         except Exception as e:
             self.get_logger().error(f"Fehler beim Speichern der CSV: {e}")
 
