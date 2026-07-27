@@ -29,8 +29,8 @@ class OptimizerNode(Node):
         # Schritt 1: Dateneingabe & Parameter
         # ==========================================
         self.declare_parameter('w_crlb', 1.0)
-        self.declare_parameter('w_move', 0.1)
-        self.declare_parameter('w_obs', 0.5)
+        self.declare_parameter('w_move', 1.0)
+        self.declare_parameter('w_obs', 0.005)
         self.declare_parameter('max_drone_dist', 30.0)
         self.declare_parameter('robot_types', ['A', 'A', 'B', 'B'])
         self.declare_parameter('max_iterations', 50)
@@ -46,7 +46,7 @@ class OptimizerNode(Node):
         self.enable_batch_evaluation = True  # <--- HIER AN/AUS SCHALTEN (True/False)
         self.target_name = "Objekt_1"
         self.current_run = 1
-        self.total_runs = 10                # Anzahl der Durchläufe im Batch-Modus
+        self.total_runs = 1                # Anzahl der Durchläufe im Batch-Modus
         self.experiment_results = []         # Speicher für die CSV-Daten
         # ==========================================
         
