@@ -29,8 +29,8 @@ class OptimizerNode(Node):
         # Schritt 1: Dateneingabe & Parameter
         # ==========================================
         self.declare_parameter('w_crlb', 1.0)
-        self.declare_parameter('w_move', 0.1)
-        self.declare_parameter('w_obs', 0.5)
+        self.declare_parameter('w_move', 1.6)
+        self.declare_parameter('w_obs', 1.00)
         self.declare_parameter('max_drone_dist', 30.0)
         self.declare_parameter('robot_types', ['A', 'A', 'B', 'B'])
         self.declare_parameter('max_iterations', 50)
@@ -44,8 +44,9 @@ class OptimizerNode(Node):
         # STATISTIK-MODUS SCHALTER (An/Aus)
         # ==========================================
         self.enable_batch_evaluation = True  # <--- HIER AN/AUS SCHALTEN (True/False)
+        self.target_name = "Objekt_3"
         self.current_run = 1
-        self.total_runs = 3                # Anzahl der Durchläufe im Batch-Modus
+        self.total_runs = 1             # Anzahl der Durchläufe im Batch-Modus
         self.experiment_results = []         # Speicher für die CSV-Daten
         # ==========================================
         
@@ -207,6 +208,11 @@ class OptimizerNode(Node):
         if self.current_k > len(self.all_drones):
             self.get_logger().info("Maximale Cluster-Anzahl erreicht. Abbruch.")
             self.timer.cancel()
+            
+            # --- NEU: Zwingt den Knoten, sich komplett zu beenden ---
+            import sys
+            sys.exit(0)
+            # --------------------------------------------------------
             return
 
         self.get_logger().info(f"\n------------------------------------------------")
@@ -236,10 +242,26 @@ class OptimizerNode(Node):
         formations = []
         current_cluster_costs = [] 
         valid_solution = True
+
+        # NEU: Sammler für die Einzelkosten dieses Durchlaufs
+        total_crlb_cost = 0.0
+        total_obs_cost = 0.0
+        total_move_cost = 0.0
         
         
         # Dynamisch w_move auslesen, sonst 0.1
         w_move = self.get_parameter('w_move').value if self.has_parameter('w_move') else 0.1
+
+        # ==========================================
+        # NEU: w_obs dynamisch auslesen und an PSO senden
+        # ==========================================
+        w_obs = self.get_parameter('w_obs').value if self.has_parameter('w_obs') else 1.0
+        self.optimizer.params['w_obs'] = w_obs
+        
+        # (Optional) Hier den Namen für die CSV dynamisch anpassen, 
+        # damit dein Kuchendiagramm-Skript die w_obs-Sweeps automatisch trennt:
+        self.target_name = f"U_Profil_w_obs_{w_obs}"
+        # ==========================================
         
         for idx, cluster_drones in enumerate(clusters):
             
@@ -261,13 +283,18 @@ class OptimizerNode(Node):
                 ty = best_form[i*2+1]
                 c_move_raw += math.hypot(tx - sx, ty - sy)
                 
-            max_travel_dist = num_robots_in_form * 50.0 
-            norm_move = min(c_move_raw / max_travel_dist, 1.0) if max_travel_dist > 0 else 0.0
             
-            cluster_total_cost = pso_cost + (w_move * norm_move)
+            
+            cluster_total_cost = pso_cost + (w_move * c_move_raw)
             current_total_cost += cluster_total_cost
             formations.append(best_form)
             current_cluster_costs.append(cluster_total_cost)
+
+            # NEU: Werte für die CSV aufaddieren (über alle Cluster hinweg)
+            move_cost = w_move * c_move_raw
+            total_crlb_cost += self.optimizer.best_crlb
+            total_obs_cost += self.optimizer.best_obs
+            total_move_cost += move_cost
             
 
         end_time = time.perf_counter()
@@ -332,6 +359,12 @@ class OptimizerNode(Node):
         self.marker_pub.publish(marker_array)
 
         self.previous_total_cost = current_total_cost
+
+        # === HIER IST DER FIX: Die Werte für das aktuell beste k "einfrieren" ===
+        self.best_run_crlb = total_crlb_cost
+        self.best_run_move = total_move_cost
+        self.best_run_obs = total_obs_cost
+
         self.current_k += 1
 
     
@@ -556,23 +589,44 @@ class OptimizerNode(Node):
     def finish_run(self, final_k, final_cost):
         """Speichert die Daten des aktuellen Laufs inklusive k-Historie und triggert den nächsten."""
         
-        # Wir greifen direkt auf deine bestehenden Plot-Variablen zu und kopieren sie!
+        # --- DEBUG-PRINT: Zeigt uns im Terminal, ob die Werte da sind! ---
+        val_crlb = getattr(self, 'best_run_crlb', 0.0)
+        val_move = getattr(self, 'best_run_move', 0.0)
+        val_obs = getattr(self, 'best_run_obs', 0.0)
+        
+        
         self.experiment_results.append({
+            'target': self.target_name,
             'run': self.current_run,
             'k': final_k,
             'cost': final_cost,
-            'k_history': list(self.k_history),              # z.B. [1, 2, 3, 4]
-            'cost_history': list(self.total_cost_history)   # z.B. [1500, 1200, 800, 950]
+            'cost_crlb': val_crlb,
+            'cost_move': val_move,
+            'cost_obs': val_obs,
+            'k_history': list(self.k_history),
+            'cost_history': list(self.total_cost_history)
         })
         
         self.get_logger().info(f"🏁 --- Durchlauf {self.current_run}/{self.total_runs} abgeschlossen! (k={final_k}, J={final_cost:.2f}) ---")
-
+        
         if self.current_run < self.total_runs:
             self.current_run += 1
-            self.reset_for_next_run()
+            self.get_logger().info(f"\n================================================")
+            self.get_logger().info(f"🚀 STARTE DURCHLAUF {self.current_run} VON {self.total_runs}")
+            self.get_logger().info(f"================================================\n")
+            
+            self.current_k = 1
+            self.previous_total_cost = float('inf')
+            self.best_marker_array = None 
+            self.optimization_done = False
+            self.k_history = []
+            self.total_cost_history = []
+            self.cluster_costs_history = {}
+            
+            self.timer.reset()
         else:
+            self.get_logger().info(f"🎉 Alle {self.total_runs} Durchläufe beendet! Werte Statistik aus...")
             self.evaluate_statistics_and_shutdown()
-
     # reset_for_next_run bleibt exakt so wie es ist! (Dort setzt du die Listen ja schon auf [] zurück)
 
     def reset_for_next_run(self):
@@ -600,24 +654,44 @@ class OptimizerNode(Node):
         self.get_logger().info(f"Gewähltes k:      Durchschnitt = {np.mean(ks):.2f}, StdAbw = {np.std(ks):.2f}")
         self.get_logger().info("=========================================\n")
 
-        # CSV Export
+        # CSV Export (Append-Modus für mehrere Messobjekte)
         file_path = os.path.expanduser('~/map_ws/pso_evaluation_results.csv')
+        
+        # NEU: Prüfen, ob die Datei schon existiert
+        file_exists = os.path.isfile(file_path)
+        
         try:
-            with open(file_path, mode='w', newline='') as file:
+            # NEU: mode='a' (append) hängt Daten unten an, statt sie zu überschreiben
+            with open(file_path, mode='a', newline='') as file:
                 writer = csv.writer(file)
-                # Spaltenköpfe erweitert um die Verläufe
-                writer.writerow(['Run_ID', 'Gewaehltes_k', 'Finale_Kosten_J', 'k_Verlauf', 'Kosten_Verlauf'])
+                
+                # NEU: Spaltenköpfe NUR schreiben, wenn die Datei neu erstellt wird
+                if not file_exists:
+                    writer.writerow(['Messobjekt', 'Run_ID', 'Gewaehltes_k', 'Finale_Kosten_J', 'cost_crlb', 'cost_move', 'cost_obs', 'k_Verlauf', 'Kosten_Verlauf'])
                 
                 for res in self.experiment_results:
-                    # Wir wandeln die Listen in Strings um, damit sie in eine CSV-Zelle passen
                     k_hist_str = str(res['k_history'])
                     cost_hist_str = str(res['cost_history'])
                     
-                    writer.writerow([res['run'], res['k'], res['cost'], k_hist_str, cost_hist_str])
-                    
-            self.get_logger().info(f"💾 CSV erfolgreich gespeichert unter: {file_path}")
+                    # Hier müssen die Keys exakt so heißen wie oben im Dictionary!
+                    writer.writerow([
+                        res['target'], 
+                        res['run'], 
+                        res['k'], 
+                        res['cost'], 
+                        res['cost_crlb'], 
+                        res['cost_move'], 
+                        res['cost_obs'], 
+                        k_hist_str, 
+                        cost_hist_str
+                    ])
+
+            self.get_logger().info(f"💾 CSV erfolgreich gespeichert/erweitert unter: {file_path}")
         except Exception as e:
             self.get_logger().error(f"Fehler beim Speichern der CSV: {e}")
+
+        if rclpy.ok():
+            rclpy.shutdown()
 
         sys.exit(0)
 

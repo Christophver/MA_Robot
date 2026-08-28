@@ -4,6 +4,3 @@ source;share/multi_robot_optimizer/hook/pythonpath.sh
 source;share/multi_robot_optimizer/hook/ament_prefix_path.ps1
 source;share/multi_robot_optimizer/hook/ament_prefix_path.dsv
 source;share/multi_robot_optimizer/hook/ament_prefix_path.sh
-source;../../build/multi_robot_optimizer/share/multi_robot_optimizer/hook/pythonpath_develop.ps1
-source;../../build/multi_robot_optimizer/share/multi_robot_optimizer/hook/pythonpath_develop.dsv
-source;../../build/multi_robot_optimizer/share/multi_robot_optimizer/hook/pythonpath_develop.sh
