@@ -11,13 +11,10 @@ setup.py
 config/pso_params.yaml
 launch/optimizer.launch.py
 multi_robot_optimizer/__init__.py
+multi_robot_optimizer/image_to_ros.py
 multi_robot_optimizer/optimizer_node.py
 multi_robot_optimizer/pso_algorithm.py
-multi_robot_optimizer.egg-info/PKG-INFO
-multi_robot_optimizer.egg-info/SOURCES.txt
-multi_robot_optimizer.egg-info/dependency_links.txt
-multi_robot_optimizer.egg-info/entry_points.txt
-multi_robot_optimizer.egg-info/requires.txt
-multi_robot_optimizer.egg-info/top_level.txt
-multi_robot_optimizer.egg-info/zip-safe
 resource/multi_robot_optimizer
+test/test_copyright.py
+test/test_flake8.py
+test/test_pep257.py

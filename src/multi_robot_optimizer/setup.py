@@ -26,7 +26,8 @@ setup(
     entry_points={
         'console_scripts': [
             # Hier definieren wir den Startbefehl für den ROS-Knoten (kommt im nächsten Schritt)
-            'optimizer_node = multi_robot_optimizer.optimizer_node:main'
+            'optimizer_node = multi_robot_optimizer.optimizer_node:main',
+            'image_to_ros = multi_robot_optimizer.image_to_ros:main',
         ],
     },
 )

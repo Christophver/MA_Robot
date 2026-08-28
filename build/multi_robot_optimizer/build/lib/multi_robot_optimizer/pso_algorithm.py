@@ -144,7 +144,9 @@ class SwarmOptimizer:
             
             # 1. Fitness evaluieren und pBest/gBest updaten
             for i in range(num_particles):
-                cost = self._calculate_cost(particles[i], drone_cluster)
+                
+                # ÄNDERUNG 1: Entpacken der 4 Rückgabewerte
+                cost, curr_crlb, curr_obs, curr_inter = self._calculate_cost(particles[i], drone_cluster)
                 
                 # Update Personal Best (lokales Optimum des Partikels)
                 if cost < personal_best_costs[i]:
@@ -156,6 +158,11 @@ class SwarmOptimizer:
                     best_cost = cost
                     global_best_position = particles[i].copy()
                     improved = True
+                    
+                    # ÄNDERUNG 2: Speichere die Kosten-Zusammensetzung dieses Rekords
+                    self.best_crlb = curr_crlb
+                    self.best_obs = curr_obs
+                    self.best_inter = curr_inter
                     
 
             # ==========================================
@@ -195,7 +202,7 @@ class SwarmOptimizer:
             if stagnation_counter >= patience:
                 break
         
-        return global_best_position, best_cost,
+        return global_best_position, best_cost
     
     def _calculate_cost(self, formation, drone_cluster, use_minimax=False):
         crlb_values = []
@@ -209,11 +216,23 @@ class SwarmOptimizer:
         else:
             base_cost = sum(crlb_values)
             
-        # HIER: obstacle_coords entfernt! Es wird nur noch formation übergeben.
-        c_obs = self._calculate_obstacle_penalty(formation)
+        # HIER WIRD DAS GEWICHT ANGEWENDET
+        # 1. w_obs aus den Parametern laden (Standardwert 1.0, falls nichts übergeben wird)
+        w_obs = self.params.get('w_obs', 1.0)
+        
+        # 2. Rohe Penalty berechnen
+        c_obs_raw = self._calculate_obstacle_penalty(formation)
+        
+        # 3. Mit dem Gewicht multiplizieren!
+        c_obs = w_obs * c_obs_raw  
+        
         c_inter = self._calculate_inter_robot_penalty(formation)
         
-        return base_cost + c_obs + c_inter
+        # Gesamtkosten zusammensetzen
+        total_cost = base_cost + c_obs + c_inter
+        
+        # Reihenfolge: 1. Gesamtsumme, 2. CRLB, 3. Hindernisse, 4. Inter-Roboter
+        return total_cost, base_cost, c_obs, c_inter
 
     def _calculate_crlb_3d_from_ground(self, formation, drone_pose):
         J = np.zeros((6, 6))

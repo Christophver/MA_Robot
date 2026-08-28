@@ -1,2 +1,3 @@
 [console_scripts]
+image_to_ros = multi_robot_optimizer.image_to_ros:main
 optimizer_node = multi_robot_optimizer.optimizer_node:main
