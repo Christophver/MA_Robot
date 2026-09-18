@@ -44,10 +44,11 @@ class OptimizerNode(Node):
         # STATISTIK-MODUS SCHALTER (An/Aus)
         # ==========================================
         self.enable_batch_evaluation = True  # <--- HIER AN/AUS SCHALTEN (True/False)
-        self.target_name = "Objekt_3"
+        self.target_name = "Objekt_1"
         self.current_run = 1
-        self.total_runs = 1             # Anzahl der Durchläufe im Batch-Modus
-        self.experiment_results = []         # Speicher für die CSV-Daten
+        self.total_runs = 1            # Anzahl der Durchläufe im Batch-Modus
+        self.experiment_results = []  
+        self.declare_parameter('scenario_name', 1)       # Speicher für die CSV-Daten
         # ==========================================
         
         params = {
@@ -258,9 +259,14 @@ class OptimizerNode(Node):
         w_obs = self.get_parameter('w_obs').value if self.has_parameter('w_obs') else 1.0
         self.optimizer.params['w_obs'] = w_obs
         
-        # (Optional) Hier den Namen für die CSV dynamisch anpassen, 
-        # damit dein Kuchendiagramm-Skript die w_obs-Sweeps automatisch trennt:
-        self.target_name = f"U_Profil_w_obs_{w_obs}"
+        # ==========================================
+        # NEU: Finaler Name für die Auswertung
+        # ==========================================
+        w_obs = self.get_parameter('w_obs').value if self.has_parameter('w_obs') else 1.0
+        self.optimizer.params['w_obs'] = w_obs
+
+        scenario_idx = self.get_parameter('scenario_name').value
+        self.target_name = f"Szenario_{scenario_idx}_Final"
         # ==========================================
         
         for idx, cluster_drones in enumerate(clusters):
