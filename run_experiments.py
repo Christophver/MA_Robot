@@ -1,65 +1,60 @@
 import subprocess
 import time
 
-def run_all_experiments():
-    # Deine Parameter für den Sweep
-    w_obs_values = [1.0,10.0,100.0]
-    runs_per_value = 30
+def run_final_evaluation():
+    # Deine 4 Masterarbeits-Szenarien
+    scenarios = [1, 2, 3, 4]
+    runs_per_scenario = 1
     
-    # Deine spezifischen ROS 2 Paket- und Knoten-Namen
+    # Deine gefundenen Sweet Spots aus den Parameter-Sweeps
+    w_move_fixed = 1.6
+    w_obs_fixed = 1.0
+    
     opt_package = "multi_robot_optimizer" 
     opt_node = "optimizer_node"
-    
     img_package = "multi_robot_optimizer"
     img_node = "image_to_ros"
-    scenario = 3
 
-    print("🚀 Starte vollautomatische Testreihe (Workflow: Opt -> Wait -> Img)...")
-    total_runs = len(w_obs_values) * runs_per_value
+    total_runs = len(scenarios) * runs_per_scenario
+    print(f"🚀 Starte FINALE EVALUIERUNG ({total_runs} Durchläufe)...")
     current_run = 0
 
-    for w in w_obs_values:
+    for s in scenarios:
         print(f"\n=======================================================")
-        print(f" STARTE SWEEP: w_obs = {w}")
+        print(f" STARTE SZENARIO {s} (Fixierte Parameter: w_move={w_move_fixed}, w_obs={w_obs_fixed})")
         print(f"=======================================================")
         
-        for i in range(1, runs_per_value + 1):
+        for i in range(1, runs_per_scenario + 1):
             current_run += 1
-            print(f" ---> [w_obs={w}] Durchlauf {i}/{runs_per_value} (Gesamtfortschritt: {current_run}/{total_runs})")
+            print(f" ---> [Szenario {s}] Durchlauf {i}/{runs_per_scenario} (Gesamtfortschritt: {current_run}/{total_runs})")
             
-            # --- SCHRITT 1: Optimierer im Hintergrund starten ---
+            # --- SCHRITT 1: Optimierer starten ---
+            # Wir übergeben hier deine Sweet Spots und zusätzlich das Szenario für den CSV-Namen!
             cmd_opt = [
                 "ros2", "run", opt_package, opt_node,
-                "--ros-args", "-p", f"w_obs:={w}"
+                "--ros-args", 
+                "-p", f"w_obs:={w_obs_fixed:.2f}",
+                "-p", f"w_move:={w_move_fixed:.2f}",
+                "-p", f"scenario_name:={s}"
             ]
-            # Popen startet den Prozess und lässt das Skript sofort weiterlaufen
             opt_process = subprocess.Popen(cmd_opt)
             
-            # --- SCHRITT 2: Kurz warten, bis der Optimierer zuhört ---
-            time.sleep(2.5) # 2.5 Sekunden sollten für den ROS-Start locker reichen
+            time.sleep(2.5) 
             
-            # --- SCHRITT 3: Image_to_ros starten (Triggert die Daten) ---
+            # --- SCHRITT 2: Bild_Knoten starten ---
             cmd_img = [
                 "ros2", "run", img_package, img_node,
-                "--ros-args", "-p", f"scenario:={scenario}"
+                "--ros-args", "-p", f"scenario:={s}"
             ]
             img_process = subprocess.Popen(cmd_img)
             
-            # --- SCHRITT 4: Skript pausieren, bis der Optimierer GANZ FERTIG ist ---
-            # Hier wartet Python, bis in deinem Knoten sys.exit(0) aufgerufen wird
             opt_process.wait()
             
-            # --- SCHRITT 5: Aufräumen ---
-            # Wir beenden den image_to_ros Knoten, damit beim nächsten Durchlauf 
-            # alles wieder bei 0 anfängt.
             img_process.terminate()
             img_process.wait() 
-            
-            # 1 Sekunde Pause, damit ROS 2 die Ports sauber freigibt
             time.sleep(1)
 
-    print(f"\n✅ Alle {total_runs} Durchläufe erfolgreich abgeschlossen!")
-    print("Du kannst jetzt deine Auswertung starten!")
+    print(f"\n✅ Alle {total_runs} finalen Durchläufe erfolgreich abgeschlossen!")
 
 if __name__ == "__main__":
-    run_all_experiments()
+    run_final_evaluation()

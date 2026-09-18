@@ -18,6 +18,10 @@ import scipy.ndimage as ndimage
 PIXEL_TO_METER = 0.1              # Skalierung: 1 Pixel = 10 cm in der echten Welt
 BUILDING_HEIGHT = 10.0            # Angenommene Standardhöhe aller Gebäude in Metern
 
+# NEU: Konstanten für den Streifenlichtprojektor (Structured Light Scanner)
+STANDOFF_DISTANCE_M = 2.5         # Fester Arbeitsabstand der Drohne zur Wand
+TARGET_RESOLUTION_M = 2.5         # Gewünschter Abstand der Dummy-Drohnen untereinander (Adaptive Sampling)
+
 selected_target_idx = 0
 contours = []
 image_display = None
@@ -53,7 +57,7 @@ def generate_hardcoded_scenario(mode):
         cv2.rectangle(img, (50, 60), (70, 140), 0, -1)
         cv2.rectangle(img, (50, 120), (150, 140), 0, -1)
         cv2.rectangle(img, (130, 60), (150, 140), 0, -1)
-        cv2.rectangle(img, (30, 170), (170, 180), 0, -1)
+        cv2.rectangle(img, (30, 180), (170, 190), 0, -1) 
         cv2.line(img, (10, 20), (40, 50), 0, thickness=8)
         cv2.line(img, (190, 20), (160, 50), 0, thickness=8)
 
@@ -176,6 +180,8 @@ def main(args=None):
     print("Automatischer Modus aktiv. Warte 1,5 Sekunden für ROS 2 DDS Discovery...")
     time.sleep(1.5)
 
+    
+
     # 7. Zielobjekt extrahieren (Für den Drohnen-Start)
     target_obstacles = []
 
@@ -200,6 +206,20 @@ def main(args=None):
     flat_grid = flipped_grid.flatten()
     ros_grid = np.where(flat_grid > 0, 100, 0).astype(np.int8)
 
+    # ==========================================
+    # NEU: Adaptive Zielpunktgenerierung (Drohnenanzahl)
+    # ==========================================
+    target_contour = contours[selected_target_idx]
+    perimeter_pixels = cv2.arcLength(target_contour, True)
+    perimeter_meters = perimeter_pixels * PIXEL_TO_METER
+    
+    # Finale Drohnenanzahl (Dummys) berechnen
+    num_drones = max(1, int(perimeter_meters / TARGET_RESOLUTION_M))
+
+    print(f"--> Gebäudeumfang: {perimeter_meters:.2f} m")
+    print(f"--> Adaptive Auflösung: {TARGET_RESOLUTION_M} m -> Generiere {num_drones} Dummy-Drohnen.")
+    # ==========================================
+
     # Drohnen-Ring NUR um das Messobjekt berechnen
     print("Berechne maßgeschneiderte Drohnen-Positionen an der Iso-Kontur...")
     target_mask = np.zeros((h, w), dtype=np.uint8)
@@ -207,7 +227,10 @@ def main(args=None):
     flipped_target = np.flipud(target_mask)
 
     target_esdf = ndimage.distance_transform_edt(flipped_target == 0) * PIXEL_TO_METER
-    ring_mask = (target_esdf > 2.8) & (target_esdf < 3.2)
+    
+    # NEU: Iso-Kontur exakt bei 2.5m (STANDOFF_DISTANCE_M)
+    tolerance = PIXEL_TO_METER / 2.0
+    ring_mask = (target_esdf >= STANDOFF_DISTANCE_M - tolerance) & (target_esdf <= STANDOFF_DISTANCE_M + tolerance)
 
     origin_x = - (center_x * PIXEL_TO_METER)
     origin_y = - (center_y * PIXEL_TO_METER)
@@ -223,9 +246,10 @@ def main(args=None):
     valid_points = np.array(valid_points)
     drone_poses_list = []
 
-    if len(valid_points) >= 16:
-        kmeans = KMeans(n_clusters=16, random_state=42, n_init=10).fit(valid_points)
-        z_levels = [1.0, BUILDING_HEIGHT - 1.0]
+    # NEU: num_drones anstelle der festen 16 verwenden
+    if len(valid_points) >= num_drones:
+        kmeans = KMeans(n_clusters=num_drones, random_state=42, n_init=10).fit(valid_points)
+        z_levels = [1.25, 3.75, 6.25, 8.75]
         
         x_box, y_box, bw, bh = cv2.boundingRect(contours[selected_target_idx])
         tcx = ((x_box + bw/2.0) - center_x) * PIXEL_TO_METER
@@ -238,7 +262,8 @@ def main(args=None):
                 yaw = math.atan2(vy, vx)
                 drone_poses_list.append([center[0], center[1], z, yaw])
     else:
-        print("WARNUNG: Zielkontur zu klein für stabilen Drohnen-Ring!")
+        print(f"WARNUNG: Zielkontur zu klein für {num_drones} Drohnen!")
+
 
     # 9. Publisher einrichten und Topics senden
     map_pub = node.create_publisher(OccupancyGrid, '/map', 10)
