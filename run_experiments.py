@@ -3,8 +3,8 @@ import time
 
 def run_final_evaluation():
     # Deine 4 Masterarbeits-Szenarien
-    scenarios = [1, 2, 3, 4]
-    runs_per_scenario = 1
+    scenarios = [4]
+    runs_per_scenario = 30
     
     # Deine gefundenen Sweet Spots aus den Parameter-Sweeps
     w_move_fixed = 1.6

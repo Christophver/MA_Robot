@@ -129,8 +129,9 @@ class SwarmOptimizer:
         best_cost = float('inf')
         
         stagnation_counter = 0
-        patience = 15 # Nach 15 Runden ohne Verbesserung abbrechen
-        min_improvement = 0.001
+        # Werte dynamisch aus den übergebenen Parametern holen, Fallback ist 15 bzw. 0.001
+        patience = self.params.get('t_patience', 15)
+        min_improvement = self.params.get('epsilon', 0.001)
         
         # PSO Hyperparameter dynamisch laden
         max_iterations = self.params.get('max_iterations', 50)

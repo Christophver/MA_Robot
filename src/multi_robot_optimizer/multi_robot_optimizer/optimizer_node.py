@@ -39,6 +39,8 @@ class OptimizerNode(Node):
         self.declare_parameter('inertia_weight', 0.5)
         self.declare_parameter('d_safe', 1.0)
         self.declare_parameter('d_crash', 0.15) 
+        self.declare_parameter('t_patience', 15)
+        self.declare_parameter('epsilon', 0.0001)
 
         # ==========================================
         # STATISTIK-MODUS SCHALTER (An/Aus)
@@ -63,6 +65,8 @@ class OptimizerNode(Node):
             'inertia_weight': self.get_parameter('inertia_weight').value,
             'd_safe': self.get_parameter('d_safe').value,
             'd_crash': self.get_parameter('d_crash').value,
+            't_patience' : self.get_parameter('t_patience').value,
+            'epsilon' : self.get_parameter('epsilon').value,
         }
 
         self.optimizer = SwarmOptimizer(params)

@@ -1,0 +1,71 @@
+import subprocess
+import time
+
+def run_patience_epsilon_sweep():
+    # Parameter-Grid fuer die Sensitivitaetsanalyse
+    t_patience_values = [5, 10, 15, 20, 25, 30]
+    epsilon_values = [0.01, 0.001, 0.0001, 0.00001] # Entspricht 10^-2 bis 10^-5
+    
+    # Fuer eine Voruntersuchung (Grid Search) reichen oft 10 Durchlaeufe. 
+    # Kann bei Bedarf auf 30 erhoeht werden.
+    runs_per_combination = 10 
+    
+    # ROS 2 Paket- und Knoten-Namen
+    opt_package = "multi_robot_optimizer" 
+    opt_node = "optimizer_node"
+    img_package = "multi_robot_optimizer"
+    img_node = "image_to_ros"
+    
+    # Fixiert auf ein repraesentatives und schnelles Szenario (z. B. Quadrat)
+    scenario = 1
+    w_move_fixed = 1.6
+    w_obs_fixed = 1.0
+
+    total_runs = len(t_patience_values) * len(epsilon_values) * runs_per_combination
+    print(f"Starte vollautomatische Grid-Search ({total_runs} Durchlaeufe)...")
+    current_run = 0
+
+    for t in t_patience_values:
+        for eps in epsilon_values:
+            print(f"\n=======================================================")
+            print(f" STARTE KOMBINATION: t_patience = {t}, epsilon = {eps}")
+            print(f"=======================================================")
+            
+            for i in range(1, runs_per_combination + 1):
+                current_run += 1
+                print(f" ---> [t={t}, eps={eps}] Durchlauf {i}/{runs_per_combination} (Gesamtfortschritt: {current_run}/{total_runs})")
+                
+                # --- SCHRITT 1: Optimierer starten ---
+                # Parameter t_patience und epsilon werden zusaetzlich an den Knoten uebergeben
+                cmd_opt = [
+                    "ros2", "run", opt_package, opt_node,
+                    "--ros-args", 
+                    "-p", f"w_obs:={w_obs_fixed:.2f}",
+                    "-p", f"w_move:={w_move_fixed:.2f}",
+                    "-p", f"t_patience:={t}",
+                    "-p", f"epsilon:={eps:.5f}",
+                    # Der Name wird dynamisch generiert, um die CSV-Dateien zu trennen
+                    "-p", f"scenario_name:={t}"
+                ]
+                
+                opt_process = subprocess.Popen(cmd_opt)
+                
+                time.sleep(2.5) 
+                
+                # --- SCHRITT 2: Bild_Knoten starten ---
+                cmd_img = [
+                    "ros2", "run", img_package, img_node,
+                    "--ros-args", "-p", f"scenario:={scenario}"
+                ]
+                img_process = subprocess.Popen(cmd_img)
+                
+                opt_process.wait()
+                
+                img_process.terminate()
+                img_process.wait() 
+                time.sleep(1)
+
+    print(f"\nAlle {total_runs} Durchlaeufe erfolgreich abgeschlossen!")
+
+if __name__ == "__main__":
+    run_patience_epsilon_sweep()
