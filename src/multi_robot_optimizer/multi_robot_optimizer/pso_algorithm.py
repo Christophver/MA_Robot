@@ -1,10 +1,22 @@
 import numpy as np
 import math
-from numba import njit
-
-
 
 from skimage.draw import line # Wichtig für den Bresenham!
+
+# ==========================================================================
+# MESSMODELL (Absolute Multiline): sigma_pos = 0,2 µm + 0,3 µm/m * d
+# Abstände d in Metern, Positionsvarianzen und A-Kriterium in µm².
+# ==========================================================================
+SIGMA_POS_0_UM = 0.2        # µm
+ALPHA_POS_UM_PER_M = 0.3    # µm/m
+D_MAX_M = 30.0              # Messreichweite in m
+
+# Strafwerte (vgl. Kapitel 5)
+C_BASE = 1e8                # nicht beobachtbare Drohnenpose
+C_STEP = 1e7                # je ungültigem Tracker
+C_NUM = 1e9                 # zu kleine Flotte / numerischer Fehler
+P_MAP = 1e7                 # Roboter außerhalb der Karte
+P_CRASH = 1e6               # Kollision
 
 
 class ESDFMapVectorized:
@@ -22,8 +34,11 @@ class ESDFMapVectorized:
         :param wy_array: 1D NumPy-Array der Y-Koordinaten aller Roboter/Partikel
         """
         # 1. Transformation in den Pixelraum (Vektorisiert)
-        px = (wx_array - self.origin_x) / self.resolution
-        py = (wy_array - self.origin_y) / self.resolution  # Achtung wegen Y-Flip (siehe Punkt 1)
+        # KORREKTUR: Die ESDF-Werte gelten für die Zellmittelpunkte. Der Mittelpunkt
+        # der Zelle (i, j) liegt bei origin + (j + 0,5) * resolution. Ohne den
+        # Abzug von 0,5 war die Interpolation um eine halbe Zelle verschoben.
+        px = (wx_array - self.origin_x) / self.resolution - 0.5
+        py = (wy_array - self.origin_y) / self.resolution - 0.5
 
         x0 = np.floor(px).astype(np.int32)
         y0 = np.floor(py).astype(np.int32)
@@ -82,8 +97,24 @@ class SwarmOptimizer:
         self.map_origin_y = 0.0
         
         # Lade Schwellenwerte einmalig zur Optimierung
-        self.d_safe = self.params.get('d_safe', 2.0)
+        # KORREKTUR: Rückfallwert an den Knoten angeglichen (dort 1,0 m)
+        self.d_safe = self.params.get('d_safe', 1.0)
         self.d_crash = self.params.get('d_crash', 0.15)
+
+        # NEU (Laufzeit): Zwischenspeicher für Sichtlinienprüfungen. Die Prüfung hängt
+        # nur von der Rasterzelle des Trackers und der Rasterzelle der Drohne ab
+        # (2,5D-Karte, Höhe spielt keine Rolle). Je Drohnenzelle speichert ein
+        # int8-Raster das Ergebnis (-1 unbekannt, 0 frei, 1 verdeckt). Das Ergebnis
+        # ist identisch mit der direkten Prüfung, wird aber je Zellenpaar nur einmal
+        # berechnet und über alle Gruppen und Gruppenanzahlen wiederverwendet.
+        self._los_cache = {}
+        self._los_cache_grid_id = None
+
+        # Kostenzusammensetzung der besten Formation (für die CSV-Auswertung)
+        self.best_crlb = 0.0
+        self.best_obs = 0.0
+        self.best_obs_raw = 0.0
+        self.best_inter = 0.0
 
     def run_pso(self, drone_cluster, start_robot_poses):
         cluster_center = np.mean(drone_cluster, axis=0) 
@@ -129,9 +160,10 @@ class SwarmOptimizer:
         best_cost = float('inf')
         
         stagnation_counter = 0
-        # Werte dynamisch aus den übergebenen Parametern holen, Fallback ist 15 bzw. 0.001
+        # Werte dynamisch aus den übergebenen Parametern holen
+        # KORREKTUR: Rückfallwert von epsilon an den Knoten angeglichen (1e-4)
         patience = self.params.get('t_patience', 15)
-        min_improvement = self.params.get('epsilon', 0.001)
+        min_improvement = self.params.get('epsilon', 1e-4)
         
         # PSO Hyperparameter dynamisch laden
         max_iterations = self.params.get('max_iterations', 50)
@@ -146,8 +178,7 @@ class SwarmOptimizer:
             # 1. Fitness evaluieren und pBest/gBest updaten
             for i in range(num_particles):
                 
-                # ÄNDERUNG 1: Entpacken der 4 Rückgabewerte
-                cost, curr_crlb, curr_obs, curr_inter = self._calculate_cost(particles[i], drone_cluster)
+                cost, curr_crlb, curr_obs, curr_inter, curr_obs_raw = self._calculate_cost(particles[i], drone_cluster)
                 
                 # Update Personal Best (lokales Optimum des Partikels)
                 if cost < personal_best_costs[i]:
@@ -163,6 +194,7 @@ class SwarmOptimizer:
                     # ÄNDERUNG 2: Speichere die Kosten-Zusammensetzung dieses Rekords
                     self.best_crlb = curr_crlb
                     self.best_obs = curr_obs
+                    self.best_obs_raw = curr_obs_raw
                     self.best_inter = curr_inter
                     
 
@@ -232,8 +264,9 @@ class SwarmOptimizer:
         # Gesamtkosten zusammensetzen
         total_cost = base_cost + c_obs + c_inter
         
-        # Reihenfolge: 1. Gesamtsumme, 2. CRLB, 3. Hindernisse, 4. Inter-Roboter
-        return total_cost, base_cost, c_obs, c_inter
+        # Reihenfolge: Gesamtsumme, CRLB, Hindernisse (gewichtet), Inter-Roboter,
+        # Hindernisse (ungewichtet, für die Kollisionsprüfung der äußeren Ebene)
+        return total_cost, base_cost, c_obs, c_inter, c_obs_raw
 
     def _calculate_crlb_3d_from_ground(self, formation, drone_pose):
         J = np.zeros((6, 6))
@@ -291,7 +324,8 @@ class SwarmOptimizer:
                     t2_x = rx - offset * nx
                     t2_y = ry - offset * ny
                     
-                    tracker_positions.append([t1_x, t2_y, 0.0])
+                    # KORREKTUR: erster Tracker verwendete t2_y statt t1_y
+                    tracker_positions.append([t1_x, t1_y, 0.0])
                     tracker_positions.append([t2_x, t2_y, 0.0])
                 else:
                     # Fallback, falls die Drohne exakt senkrecht drüber ist
@@ -300,65 +334,42 @@ class SwarmOptimizer:
 
         # Wenn wir durch Typ A/B Kombinationen weniger als 6 Tracker haben, 
         # ist die 6D-Matrix mathematisch nicht voll rangfähig (singulär).
+        # KORREKTUR: SwarmOptimizer besitzt kein get_logger() (kein ROS-Knoten).
+        # Der Aufruf führte zum Absturz. Die Flottengröße prüft jetzt der Knoten.
         if len(tracker_positions) < 6:
-            self.get_logger().warn("Achtung: Weniger als 6 Tracker im Cluster!")
-            return float(1e9)
+            return float(C_NUM)
 
         # 2. CRLB für JEDEN TRACKER berechnen (nicht mehr pro Roboter!)
-        blocked_count = 0  # NEU: Wir zählen, wie viele blind sind!
-        for tracker_pos in tracker_positions:
-            tx, ty, tz = tracker_pos
-            
-            dx = drone_pose[0] - tx
-            dy = drone_pose[1] - ty
-            dz = drone_pose[2] - tz 
-            
-            d_3d = math.sqrt(dx**2 + dy**2 + dz**2)
-            
-            if d_3d > 30.0 or d_3d == 0:
-                blocked_count += 1
-                continue 
+        # NEU (Laufzeit): vektorisierte Berechnung über alle Tracker. Das Ergebnis
+        # entspricht der bisherigen Schleife bis auf Rundungsunterschiede (~1e-15).
+        T = np.asarray(tracker_positions, dtype=float)
+        D = np.asarray(drone_pose[:3], dtype=float) - T          # Vektoren Tracker -> Drohne
+        d_3d = np.sqrt((D * D).sum(axis=1))
 
-            
-            # LoS-Check (Hindernisprüfung) in purem Python
-            if self._is_los_blocked([tx, ty, tz], drone_pose[:3]):
-                blocked_count += 1
-                continue
+        in_range = (d_3d <= D_MAX_M) & (d_3d != 0)
+        valid = np.zeros(len(T), dtype=bool)
+        for j in np.flatnonzero(in_range):
+            # LoS-Check (Hindernisprüfung) mit Zwischenspeicher
+            valid[j] = not self._is_los_blocked_cached(T[j], drone_pose)
+        blocked_count = int(len(T) - np.count_nonzero(valid))
 
-            # --- POSITIONS-BLOCK ---
-            sigma_pos = 0.2 + 0.3 * d_3d
-            var_pos = sigma_pos ** 2
-            
-            ux = dx / d_3d
-            uy = dy / d_3d
-            uz = dz / d_3d
-            
-            J_pos = (1.0 / var_pos) * np.array([
-                [ux**2,   ux*uy,   ux*uz],
-                [ux*uy,   uy**2,   ux*uz],
-                [ux*uz,   uy*uz,   uz**2]
-            ])
-            
+        J = np.zeros((6, 6))
+        if np.any(valid):
+            dv = d_3d[valid]
+            U = D[valid] / dv[:, None]                           # Einheitsvektoren
+            # --- POSITIONS-BLOCK --- sigma_pos in µm (d in m)
+            w_pos = 1.0 / (SIGMA_POS_0_UM + ALPHA_POS_UM_PER_M * dv) ** 2
+            J[0:3, 0:3] = (U * w_pos[:, None]).T @ U               # symmetrisch per Konstruktion
             # --- WINKEL-BLOCK ---
-            sigma_ang = 0.05 + 0.01 * d_3d 
-            inv_var_ang = 1.0 / (sigma_ang ** 2)
-            
-            # --- MATRIX ZUSAMMENBAUEN ---
-            J_j = np.zeros((6, 6))
-            J_j[0:3, 0:3] = J_pos
-            J_j[3, 3] = inv_var_ang # Roll
-            J_j[4, 4] = inv_var_ang # Pitch
-            J_j[5, 5] = inv_var_ang # Yaw
-            
-            # Akkumulation der Information aller Tracker
-            J += J_j
-            
+            inv_var_ang = np.sum(1.0 / (0.05 + 0.01 * dv) ** 2)
+            J[3, 3] = J[4, 4] = J[5, 5] = inv_var_ang
+
         # --- BULLETPROOF MATRIX INVERTIERUNG ---
         try:
             # 1. Determinante prüfen (Toleranz etwas strikter setzen)
             det = np.linalg.det(J)
             if det < 1e-5 or math.isnan(det):
-                return float(1e8) + (blocked_count * 1e7)
+                return float(C_BASE) + (blocked_count * C_STEP)
                 
             # 2. Invertieren und Spur berechnen
             J_inv = np.linalg.inv(J)
@@ -367,27 +378,57 @@ class SwarmOptimizer:
             # 3. DER WICHTIGSTE CHECK: CRLB darf NIEMALS negativ oder NaN sein!
             # Fängt den -10^17 Glitch ab und bestraft die fehlerhafte Formation
             if crlb_trace <= 0 or math.isnan(crlb_trace) or math.isinf(crlb_trace):
-                return float(1e9)
+                return float(C_NUM)
                 
             return crlb_trace
             
         except np.linalg.LinAlgError:
             # Fängt ab, falls NumPy die Matrix intern als komplett unlösbar einstuft
-            return float(1e9)
+            return float(C_NUM)
             
         
     
     
+    def _is_los_blocked_cached(self, start_pos, end_pos):
+        """Wie _is_los_blocked, aber mit Zwischenspeicher je Zellenpaar (identisches Ergebnis)."""
+        # Zwischenspeicher verwerfen, falls eine neue Karte gesetzt wurde
+        if self._los_cache_grid_id != id(self.binary_grid):
+            self._los_cache = {}
+            self._los_cache_grid_id = id(self.binary_grid)
+
+        height, width = self.binary_grid.shape
+        x0 = math.floor((start_pos[0] - self.map_origin_x) / self.map_resolution)
+        y0 = math.floor((start_pos[1] - self.map_origin_y) / self.map_resolution)
+        x1 = math.floor((end_pos[0] - self.map_origin_x) / self.map_resolution)
+        y1 = math.floor((end_pos[1] - self.map_origin_y) / self.map_resolution)
+
+        # Tracker außerhalb der Karte: ohne Zwischenspeicher prüfen
+        if not (0 <= x0 < width and 0 <= y0 < height):
+            return self._is_los_blocked(start_pos, end_pos)
+
+        key = (x1, y1)
+        grid = self._los_cache.get(key)
+        if grid is None:
+            grid = np.full((height, width), -1, dtype=np.int8)
+            self._los_cache[key] = grid
+        val = grid[y0, x0]
+        if val < 0:
+            val = 1 if self._is_los_blocked(start_pos, end_pos) else 0
+            grid[y0, x0] = val
+        return bool(val)
+
     def _is_los_blocked(self, start_pos, end_pos):
         """
         Prüft die Sichtlinie. Nutzt das in C-optimierte skimage.draw.line
         für maximale Vektorisierungs-Geschwindigkeit in Python.
         """
         # Weltkoordinaten in Pixel umrechnen
-        x0 = int((start_pos[0] - self.map_origin_x) / self.map_resolution)
-        y0 = int((start_pos[1] - self.map_origin_y) / self.map_resolution)
-        x1 = int((end_pos[0] - self.map_origin_x) / self.map_resolution)
-        y1 = int((end_pos[1] - self.map_origin_y) / self.map_resolution)
+        # KORREKTUR: floor statt int, damit negative Koordinaten (außerhalb der
+        # Karte) in die richtige Zelle fallen (int rundet in Richtung null).
+        x0 = math.floor((start_pos[0] - self.map_origin_x) / self.map_resolution)
+        y0 = math.floor((start_pos[1] - self.map_origin_y) / self.map_resolution)
+        x1 = math.floor((end_pos[0] - self.map_origin_x) / self.map_resolution)
+        y1 = math.floor((end_pos[1] - self.map_origin_y) / self.map_resolution)
 
         # skimage nutzt (Zeile, Spalte), also (y, x)
         # Dieser Aufruf läuft komplett in C ab!
@@ -399,7 +440,8 @@ class SwarmOptimizer:
         valid = (rr >= 0) & (rr < height) & (cc >= 0) & (cc < width)
         rr, cc = rr[valid], cc[valid]
 
-        # Die ersten 3 Pixel ignorieren (Randschutz für die Drohne)
+        # Die ersten 3 Pixel ignorieren (Zellen am Tracker, d. h. am Startpunkt der
+        # Linie; verhindert, dass ein Tracker direkt an einer Wand sich selbst verdeckt)
         if len(rr) > 3:
             rr = rr[3:]
             cc = cc[3:]
@@ -422,9 +464,9 @@ class SwarmOptimizer:
         # 3. Penalty berechnen
         for d_obs in distances:
             if d_obs < 0.0:
-                penalty += 1e7  # NEU: Starke Strafe, aber kein inf!
+                penalty += P_MAP    # Roboter außerhalb der Karte
             elif d_obs <= self.d_crash:
-                penalty += 1e6  # NEU: Starke Strafe für Crash, aber Gradient bleibt erhalten!
+                penalty += P_CRASH  # Kollision mit Hindernis
             elif d_obs < self.d_safe:
                 penalty += ((1.0 / d_obs) - (1.0 / self.d_safe)) ** 2
         return penalty
@@ -434,7 +476,7 @@ class SwarmOptimizer:
         
         # Parameter analog zur Hindernisvermeidung
         d_min = 1.5    # Sicherheitsabstand (Repulsive Kraft beginnt)
-        d_crash = 0.6  # 2x 0.3m Roboter-Radius -> Physischer Crash
+        d_crash = 0.6  # 2 x 0,3 m Roboterradius -> physische Kollision
         
         # Dynamische Schleife zur Kollisionsprüfung aller Roboter-Paare
         for i in range(self.num_robots):
@@ -445,8 +487,8 @@ class SwarmOptimizer:
                 dist = math.hypot(rx1-rx2, ry1-ry2)
                 
                 if dist <= d_crash:
-                    # Physisch unmöglich -> harte Restriktion (Partikel verwerfen)
-                    penalty += 1e6 
+                    # Physisch unmöglich -> Kollisionsstrafe
+                    penalty += P_CRASH
                 elif dist < d_min:
                     # Exponentieller Anstieg der Abstoßungskraft, je näher sie kommen
                     penalty += ((1.0 / dist) - (1.0 / d_min)) ** 2

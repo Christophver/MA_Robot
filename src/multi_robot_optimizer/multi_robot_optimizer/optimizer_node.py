@@ -3,6 +3,9 @@ from rclpy.node import Node
 import numpy as np
 import math
 import time
+import json
+import matplotlib
+matplotlib.use('Agg')  # KORREKTUR: kein Grafikfenster im Batch-Betrieb nötig
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 import scipy.ndimage as ndimage
@@ -19,7 +22,7 @@ from std_msgs.msg import ColorRGBA
 from geometry_msgs.msg import PoseArray
 
 # Eigene Imports
-from multi_robot_optimizer.pso_algorithm import SwarmOptimizer, ESDFMapVectorized
+from multi_robot_optimizer.pso_algorithm import SwarmOptimizer, ESDFMapVectorized, C_BASE, P_CRASH
 
 class OptimizerNode(Node):
     def __init__(self):
@@ -28,19 +31,32 @@ class OptimizerNode(Node):
         # ==========================================
         # Schritt 1: Dateneingabe & Parameter
         # ==========================================
-        self.declare_parameter('w_crlb', 1.0)
+        # KORREKTUR: w_crlb und max_drone_dist entfernt; beide hatten keine Wirkung
+        # (Schätzgüte geht ungewichtet ein, d_max ist in pso_algorithm.py festgelegt).
         self.declare_parameter('w_move', 1.6)
         self.declare_parameter('w_obs', 1.00)
-        self.declare_parameter('max_drone_dist', 30.0)
-        self.declare_parameter('robot_types', ['A', 'A', 'B', 'B'])
+        # KORREKTUR: sechs Einträge passend zur Ausgangsaufstellung (vorher wurden
+        # zwei Roboter stillschweigend mit Typ A ergänzt)
+        self.declare_parameter('robot_types', ['A', 'A', 'A', 'A', 'B', 'B'])
         self.declare_parameter('max_iterations', 50)
         self.declare_parameter('c1', 1.5)
         self.declare_parameter('c2', 1.5)
         self.declare_parameter('inertia_weight', 0.5)
         self.declare_parameter('d_safe', 1.0)
-        self.declare_parameter('d_crash', 0.15) 
+        self.declare_parameter('d_crash', 0.15)
         self.declare_parameter('t_patience', 15)
         self.declare_parameter('epsilon', 0.0001)
+
+        # NEU: Parameter für die automatisierten Versuchsreihen
+        # Periode des Zeitgebers (je Aufruf eine Gruppenanzahl K). Beeinflusst das
+        # Ergebnis nicht, nur die Wartezeit zwischen zwei Schritten.
+        self.declare_parameter('timer_period', 4.0)
+        # Ausgabedatei und Kennung des Laufs (für parallele Läufe und Wiederaufnahme)
+        self.declare_parameter('csv_path', os.path.expanduser('~/map_ws/pso_evaluation_results.csv'))
+        self.declare_parameter('task_id', '')
+        # Ausgangsaufstellung der Roboter [x1, y1, x2, y2, ...] in m
+        self.declare_parameter('start_robot_poses', [0.0, 0.0, 1.0, 0.0, 2.0, 0.0,
+                                                     0.0, 1.0, 1.0, 1.0, 2.0, 1.0])
 
         # ==========================================
         # STATISTIK-MODUS SCHALTER (An/Aus)
@@ -54,10 +70,8 @@ class OptimizerNode(Node):
         # ==========================================
         
         params = {
-            'w_crlb': self.get_parameter('w_crlb').value,
             'w_move': self.get_parameter('w_move').value,
             'w_obs': self.get_parameter('w_obs').value,
-            'max_drone_dist': self.get_parameter('max_drone_dist').value,
             'robot_types': self.get_parameter('robot_types').value,
             'max_iterations': self.get_parameter('max_iterations').value,
             'c1': self.get_parameter('c1').value,
@@ -96,11 +110,20 @@ class OptimizerNode(Node):
             (0.090, 0.745, 0.812), (0.620, 0.855, 0.898),
         ]
 
-        # Initiale Posen der Bodenroboter
-        self.start_robot_poses = [
-            0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 
-            0.0, 1.0, 1.0, 1.0, 2.0, 1.0   
-        ]
+        # Initiale Posen der Bodenroboter (jetzt als ROS-2-Parameter)
+        self.start_robot_poses = [float(v) for v in self.get_parameter('start_robot_poses').value]
+        self.timer_period = float(self.get_parameter('timer_period').value)
+        self.csv_path = os.path.expanduser(self.get_parameter('csv_path').value)
+        self.task_id = str(self.get_parameter('task_id').value)
+
+        # NEU: Flottengröße einmalig prüfen (vorher im SwarmOptimizer mit Absturz)
+        n_robots = len(self.start_robot_poses) // 2
+        types = list(params['robot_types']) + ['A'] * max(0, n_robots - len(params['robot_types']))
+        self.num_trackers = sum(2 if t == 'B' else 1 for t in types[:n_robots])
+        if self.num_trackers < 6:
+            self.get_logger().error(
+                f"Flotte mit {self.num_trackers} Trackern ist zu klein (mindestens 6). "
+                "Jede Gruppe würde als nicht erfassbar gelten.")
         
         # Initialisierung der PSO-Zustandsvariablen
         self.current_k = 1
@@ -110,8 +133,22 @@ class OptimizerNode(Node):
         self.cluster_costs_history = {}
         self.previous_total_cost = float('inf')
         self.best_marker_array = None 
+
+        # NEU: Protokollgrößen für die CSV-Datei
+        self.runtime_history = []       # Rechenzeit je untersuchter Gruppenanzahl (s)
+        self.best_run_inter = 0.0
+        self.best_run_formations = []
+        self.best_run_group_sizes = []
         
         self.timer = None
+
+        # NEU: Wachhund für den Start. Verpasst der Knoten Karte oder Drohnenposen
+        # (z. B. weil der Start unter Last länger dauert), beendet er sich nach
+        # startup_timeout Sekunden selbst. Das Versuchsskript wiederholt den Lauf
+        # dann sofort, statt bis zu seinem Zeitlimit zu warten.
+        self.declare_parameter('startup_timeout', 60.0)
+        self.startup_deadline = time.time() + float(self.get_parameter('startup_timeout').value)
+        self.watchdog_timer = self.create_timer(5.0, self.startup_watchdog)
         self.get_logger().info("Warte auf Karte (/map) und Drohnen (/drone_targets)...")
         
         # Prüft sofort, ob evtl. schon Daten anliegen (für schnelle Neustarts)
@@ -155,21 +192,36 @@ class OptimizerNode(Node):
 
         self.map_received = True
         self.get_logger().info("Umgebung erfolgreich initialisiert. Erzeuge RViz Debug-Ansicht...")
-        self.check_start_condition()
 
         # 1. Debug Map dauerhaft an RViz senden (alle 2 Sekunden)
         # So kann RViz die Nachricht nicht mehr verpassen!
         self.debug_timer = self.create_timer(2.0, self.publish_rviz_debug_map)
 
-        # JETZT ERST den Loop starten!
-        self.timer = self.create_timer(4.0, self.evaluate_next_k)
+        # KORREKTUR: Der Zeitgeber wurde hier zusätzlich unbedingt erzeugt. Kamen die
+        # Drohnenposen vor der Karte an, liefen zwei Zeitgeber parallel. Kam die
+        # Karte zuerst und feuerte der Zeitgeber vor dem Empfang der Posen, beendete
+        # sich der Knoten (K = 1 > N_d = 0). Jetzt startet nur check_start_condition
+        # den Zeitgeber, und zwar erst, wenn beide Daten vorliegen.
+        self.check_start_condition()
         
     def check_start_condition(self):
         """Startet die PSO-Schleife erst, wenn Karte UND Drohnen-Posen existieren."""
         if self.map_received and self.drones_received and self.timer is None:
             self.get_logger().info("🚀 Beide Datenströme bereit. Starte Optimierungsschleife...")
             # Optional: Hier wieder dein rviz debug grid aktivieren falls gewünscht
-            self.timer = self.create_timer(4.0, self.evaluate_next_k)
+            self.timer = self.create_timer(self.timer_period, self.evaluate_next_k)
+
+    def startup_watchdog(self):
+        """Beendet den Knoten, wenn Karte oder Drohnenposen nicht rechtzeitig eintreffen."""
+        if self.map_received and self.drones_received:
+            self.watchdog_timer.cancel()
+            return
+        if time.time() > self.startup_deadline:
+            self.get_logger().error(
+                f"Keine Daten nach Startfrist (Karte: {self.map_received}, "
+                f"Drohnenposen: {self.drones_received}). Knoten beendet sich.")
+            import sys
+            sys.exit(3)
 
     def drone_callback(self, msg):
         """Empfängt die maßgeschneiderten Drohnen-Positionen direkt von OpenCV."""
@@ -187,6 +239,12 @@ class OptimizerNode(Node):
             drones_6d.append([dx, dy, dz, 0.0, 0.0, yaw])
 
         self.all_drones = np.array(drones_6d)
+
+        # NEU: Leere Nachricht ignorieren (sonst gälte sofort K = 1 > N_d = 0)
+        if len(self.all_drones) == 0:
+            self.get_logger().warn("Leere Drohnenliste empfangen, warte auf nächste Nachricht.")
+            return
+
         self.drones_received = True
         self.get_logger().info(f"✅ {len(self.all_drones)} Ziel-Drohnen erfolgreich registriert!")
         
@@ -211,13 +269,16 @@ class OptimizerNode(Node):
             return
         
         if self.current_k > len(self.all_drones):
+            # KORREKTUR: Vorher beendete sich der Knoten hier ohne finish_run(), und
+            # der Lauf fehlte in der CSV-Datei. Jetzt wird die letzte zulässige
+            # Gruppenanzahl als Ergebnis gespeichert (Status 'max_k'), oder der Lauf
+            # wird als 'keine_loesung' protokolliert.
             self.get_logger().info("Maximale Cluster-Anzahl erreicht. Abbruch.")
-            self.timer.cancel()
-            
-            # --- NEU: Zwingt den Knoten, sich komplett zu beenden ---
-            import sys
-            sys.exit(0)
-            # --------------------------------------------------------
+            if math.isfinite(self.previous_total_cost):
+                self.finish_run(final_k=self.current_k - 1,
+                                final_cost=self.previous_total_cost, status='max_k')
+            else:
+                self.finish_run(final_k=0, final_cost=float('nan'), status='keine_loesung')
             return
 
         self.get_logger().info(f"\n------------------------------------------------")
@@ -252,22 +313,17 @@ class OptimizerNode(Node):
         total_crlb_cost = 0.0
         total_obs_cost = 0.0
         total_move_cost = 0.0
+        total_inter_cost = 0.0
         
         
         # Dynamisch w_move auslesen, sonst 0.1
         w_move = self.get_parameter('w_move').value if self.has_parameter('w_move') else 0.1
 
-        # ==========================================
-        # NEU: w_obs dynamisch auslesen und an PSO senden
-        # ==========================================
+        # w_obs dynamisch auslesen und an PSO senden
         w_obs = self.get_parameter('w_obs').value if self.has_parameter('w_obs') else 1.0
         self.optimizer.params['w_obs'] = w_obs
-        
-        # ==========================================
-        # NEU: Finaler Name für die Auswertung
-        # ==========================================
-        w_obs = self.get_parameter('w_obs').value if self.has_parameter('w_obs') else 1.0
-        self.optimizer.params['w_obs'] = w_obs
+
+        # Finaler Name für die Auswertung
 
         scenario_idx = self.get_parameter('scenario_name').value
         self.target_name = f"Szenario_{scenario_idx}_Final"
@@ -278,10 +334,18 @@ class OptimizerNode(Node):
             # ACHTUNG: Aufruf geändert! obstacle_coords wird nicht mehr an run_pso übergeben!
             best_form, pso_cost = self.optimizer.run_pso(cluster_drones, self.start_robot_poses)
             
-            if best_form is None or pso_cost >= 1e8:
+            if best_form is None or pso_cost >= C_BASE:
                 self.get_logger().warn(f"PSO für Cluster {idx+1} gescheitert (Sichtlinie blockiert oder Singularität).")
                 valid_solution = False
                 break 
+
+            # KORREKTUR: Kollisionen (1e6) und Positionen außerhalb der Karte (1e7)
+            # lagen unter C_base und wurden bisher als zulässig akzeptiert. Die
+            # Prüfung nutzt die ungewichteten Strafen, damit sie auch bei w_obs = 0 greift.
+            if self.optimizer.best_obs_raw >= P_CRASH or self.optimizer.best_inter >= P_CRASH:
+                self.get_logger().warn(f"PSO für Cluster {idx+1} gescheitert (Kollision oder außerhalb der Karte).")
+                valid_solution = False
+                break
                 
             c_move_raw = 0.0
             num_robots_in_form = len(best_form) // 2
@@ -304,11 +368,13 @@ class OptimizerNode(Node):
             move_cost = w_move * c_move_raw
             total_crlb_cost += self.optimizer.best_crlb
             total_obs_cost += self.optimizer.best_obs
+            total_inter_cost += self.optimizer.best_inter
             total_move_cost += move_cost
             
 
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
+        self.runtime_history.append(round(elapsed_time, 4))  # NEU: für die CSV-Datei
         self.get_logger().info(f"⏱️ Evaluierung für k={self.current_k} abgeschlossen in {elapsed_time:.3f} Sekunden.")
 
         if not valid_solution:
@@ -334,7 +400,7 @@ class OptimizerNode(Node):
             if self.enable_batch_evaluation:
                 # Schalter ist AN: Daten des besten k speichern und Loop neu starten.
                 # WICHTIG: plot_results() wird hier übersprungen, damit der Code nicht pausiert!
-                self.finish_run(final_k=self.current_k - 1, final_cost=self.previous_total_cost)
+                self.finish_run(final_k=self.current_k - 1, final_cost=self.previous_total_cost, status='abbruchkriterium')
                 return 
             else:
                 # Schalter ist AUS: Normales Verhalten für Vorführungen
@@ -374,6 +440,9 @@ class OptimizerNode(Node):
         self.best_run_crlb = total_crlb_cost
         self.best_run_move = total_move_cost
         self.best_run_obs = total_obs_cost
+        self.best_run_inter = total_inter_cost
+        self.best_run_formations = [[round(float(v), 4) for v in f] for f in formations]
+        self.best_run_group_sizes = [len(c) for c in clusters]
 
         self.current_k += 1
 
@@ -596,25 +665,35 @@ class OptimizerNode(Node):
 
 
 
-    def finish_run(self, final_k, final_cost):
+    def finish_run(self, final_k, final_cost, status='abbruchkriterium'):
         """Speichert die Daten des aktuellen Laufs inklusive k-Historie und triggert den nächsten."""
         
-        # --- DEBUG-PRINT: Zeigt uns im Terminal, ob die Werte da sind! ---
         val_crlb = getattr(self, 'best_run_crlb', 0.0)
         val_move = getattr(self, 'best_run_move', 0.0)
         val_obs = getattr(self, 'best_run_obs', 0.0)
         
+        # NEU: Zeitgeber anhalten, damit kein weiterer Schritt mehr startet
+        if self.timer is not None:
+            self.timer.cancel()
         
         self.experiment_results.append({
+            'task_id': self.task_id,
             'target': self.target_name,
             'run': self.current_run,
+            'status': status,
             'k': final_k,
             'cost': final_cost,
             'cost_crlb': val_crlb,
             'cost_move': val_move,
             'cost_obs': val_obs,
+            'cost_inter': self.best_run_inter,
             'k_history': list(self.k_history),
-            'cost_history': list(self.total_cost_history)
+            'cost_history': list(self.total_cost_history),
+            'runtime_history': list(self.runtime_history),
+            'runtime_total': round(float(sum(self.runtime_history)), 4),
+            'n_drones': int(len(self.all_drones)),
+            'group_sizes': list(self.best_run_group_sizes),
+            'formations': list(self.best_run_formations),
         })
         
         self.get_logger().info(f"🏁 --- Durchlauf {self.current_run}/{self.total_runs} abgeschlossen! (k={final_k}, J={final_cost:.2f}) ---")
@@ -632,6 +711,7 @@ class OptimizerNode(Node):
             self.k_history = []
             self.total_cost_history = []
             self.cluster_costs_history = {}
+            self.runtime_history = []
             
             self.timer.reset()
         else:
@@ -656,6 +736,7 @@ class OptimizerNode(Node):
         """Wertet die Daten aus, schreibt die CSV und beendet ROS."""
         costs = [res['cost'] for res in self.experiment_results]
         ks = [res['k'] for res in self.experiment_results]
+        p = self.optimizer.params
 
         self.get_logger().info("\n=========================================")
         self.get_logger().info("🏆 EXPERIMENT ABGESCHLOSSEN 🏆")
@@ -665,7 +746,9 @@ class OptimizerNode(Node):
         self.get_logger().info("=========================================\n")
 
         # CSV Export (Append-Modus für mehrere Messobjekte)
-        file_path = os.path.expanduser('~/map_ws/pso_evaluation_results.csv')
+        # KORREKTUR: Pfad als Parameter, damit parallele Läufe getrennte Dateien nutzen
+        file_path = self.csv_path
+        os.makedirs(os.path.dirname(file_path) or '.', exist_ok=True)
         
         # NEU: Prüfen, ob die Datei schon existiert
         file_exists = os.path.isfile(file_path)
@@ -677,23 +760,38 @@ class OptimizerNode(Node):
                 
                 # NEU: Spaltenköpfe NUR schreiben, wenn die Datei neu erstellt wird
                 if not file_exists:
-                    writer.writerow(['Messobjekt', 'Run_ID', 'Gewaehltes_k', 'Finale_Kosten_J', 'cost_crlb', 'cost_move', 'cost_obs', 'k_Verlauf', 'Kosten_Verlauf'])
+                    writer.writerow(['Task_ID', 'Messobjekt', 'Run_ID', 'Status', 'Gewaehltes_k',
+                                     'Finale_Kosten_J', 'cost_crlb', 'cost_move', 'cost_obs', 'cost_inter',
+                                     'k_Verlauf', 'Kosten_Verlauf', 'Rechenzeit_Verlauf_s', 'Rechenzeit_gesamt_s',
+                                     'w_move', 'w_obs', 'd_safe', 'd_crash', 'robot_types', 'N_Roboter',
+                                     'N_Drohnenposen', 'Gruppengroessen', 'Formationen'])
                 
                 for res in self.experiment_results:
-                    k_hist_str = str(res['k_history'])
-                    cost_hist_str = str(res['cost_history'])
-                    
                     # Hier müssen die Keys exakt so heißen wie oben im Dictionary!
                     writer.writerow([
+                        res['task_id'],
                         res['target'], 
                         res['run'], 
+                        res['status'],
                         res['k'], 
                         res['cost'], 
                         res['cost_crlb'], 
                         res['cost_move'], 
                         res['cost_obs'], 
-                        k_hist_str, 
-                        cost_hist_str
+                        res['cost_inter'],
+                        json.dumps(res['k_history']), 
+                        json.dumps(res['cost_history']),
+                        json.dumps(res['runtime_history']),
+                        res['runtime_total'],
+                        self.get_parameter('w_move').value,
+                        p.get('w_obs'),
+                        p.get('d_safe'),
+                        p.get('d_crash'),
+                        ''.join(p.get('robot_types', [])),
+                        len(self.start_robot_poses) // 2,
+                        res['n_drones'],
+                        json.dumps(res['group_sizes']),
+                        json.dumps(res['formations']),
                     ])
 
             self.get_logger().info(f"💾 CSV erfolgreich gespeichert/erweitert unter: {file_path}")

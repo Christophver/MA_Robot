@@ -239,8 +239,9 @@ def main(args=None):
     for y in range(ring_mask.shape[0]):
         for x in range(ring_mask.shape[1]):
             if ring_mask[y, x]:
-                wx = origin_x + (x * PIXEL_TO_METER)
-                wy = origin_y + (y * PIXEL_TO_METER)
+                # KORREKTUR: Zellmittelpunkt statt Zellecke (+0,5 Zellen)
+                wx = origin_x + ((x + 0.5) * PIXEL_TO_METER)
+                wy = origin_y + ((y + 0.5) * PIXEL_TO_METER)
                 valid_points.append([wx, wy])
 
     valid_points = np.array(valid_points)
@@ -255,7 +256,21 @@ def main(args=None):
         tcx = ((x_box + bw/2.0) - center_x) * PIXEL_TO_METER
         tcy = ((center_y) - (y_box + bh/2.0)) * PIXEL_TO_METER
 
+        # KORREKTUR: Messsäulen, die in einem anderen Hindernis liegen, verwerfen.
+        # Eine Drohne kann dort nicht fliegen, und jede Sichtlinie zu dieser Pose
+        # wäre verdeckt. Die Pose wäre damit nie beobachtbar, und keine Gruppe mit
+        # ihr könnte zulässig werden (Ursache für das Scheitern von Szenario 4).
+        occupied = flipped_grid > 0
+        kept_centers = []
         for center in kmeans.cluster_centers_:
+            ci = int(math.floor((center[1] - origin_y) / PIXEL_TO_METER))
+            cj = int(math.floor((center[0] - origin_x) / PIXEL_TO_METER))
+            if 0 <= ci < h and 0 <= cj < w and occupied[ci, cj]:
+                print(f"--> Messsäule bei ({center[0]:.2f}, {center[1]:.2f}) liegt in einem Hindernis und entfällt.")
+                continue
+            kept_centers.append(center)
+
+        for center in kept_centers:
             for z in z_levels:
                 vx = tcx - center[0]
                 vy = tcy - center[1]
@@ -291,7 +306,9 @@ def main(args=None):
         pose_array_msg.poses.append(pose)
 
     print("Publiziere Map und Drohnen-Messpunkte...")
-    for _ in range(5):
+    # KORREKTUR: 20 statt 5 Wiederholungen (10 s statt 2,5 s). Unter Last startet
+    # der Optimierungsknoten teils so langsam, dass er alle Nachrichten verpasste.
+    for _ in range(20):
         map_pub.publish(grid_msg)
         drone_pub.publish(pose_array_msg)
         time.sleep(0.5)
