@@ -65,7 +65,8 @@ class OptimizerNode(Node):
         # ==========================================
         # STATISTIK-MODUS SCHALTER (An/Aus)
         # ==========================================
-        self.enable_batch_evaluation = True  # <--- HIER AN/AUS SCHALTEN (True/False)
+        self.declare_parameter('batch_mode', True)
+        self.enable_batch_evaluation = bool(self.get_parameter('batch_mode').value)
         self.target_name = "Objekt_1"
         self.current_run = 1
         self.total_runs = 1            # Anzahl der Durchläufe im Batch-Modus
