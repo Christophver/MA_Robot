@@ -89,6 +89,9 @@ EXPERIMENTS = {
     # Zusammensetzung der Flotte bei gleicher Trackeranzahl (M = 8, parallel)
     'typen':  dict(scenarios=[1], runs=30, w_move=[1.0], w_obs=[1.0],
                    fleets=['A8B0', 'A6B1', 'A4B2', 'A2B3', 'A0B4']),
+    # Beispiel für extern berechnete Drohnenposen (CSV: x,y,z[,yaw] je Zeile):
+    # 'extern': dict(scenarios=[1], runs=30, w_move=[1.0], w_obs=[1.0], fleets=['N6'],
+    #                drohnen_datei='~/map_ws/drohnenposen.csv'),
     # Rechenzeitmessung (Anforderung A7): immer ohne parallele Läufe
     'zeit':   dict(scenarios=[1], runs=5, w_move=[1.0], w_obs=[1.0], fleets=['N4', 'N6', 'N8'],
                    workers=1),
@@ -115,7 +118,8 @@ def task_list(name):
                 for wo in cfg['w_obs']:
                     for r in range(1, cfg['runs'] + 1):
                         tid = f"{name}_S{sc}_{fleet}_wm{wm}_wo{wo}_r{r:02d}"
-                        tasks.append(dict(tid=tid, sc=sc, fleet=fleet, wm=wm, wo=wo, run=r))
+                        tasks.append(dict(tid=tid, sc=sc, fleet=fleet, wm=wm, wo=wo, run=r,
+                                          drohnen_datei=cfg.get('drohnen_datei', '')))
     return tasks
 
 
@@ -165,6 +169,10 @@ def run_task(task, worker, exp_dir):
                '-p', f"task_id:={task['tid']}"]
     map_cmd = ['ros2', 'run', 'multi_robot_optimizer', 'image_to_ros', '--ros-args',
                '-p', f"scenario:={int(task['sc'])}"]
+    if task.get('drohnen_datei'):
+        # Drohnenposen aus Datei statt aus der Kartenerzeugung
+        map_cmd += ['-p', 'drohnen_quelle:=datei',
+                    '-p', f"drohnen_datei:={os.path.expanduser(task['drohnen_datei'])}"]
 
     t0 = time.time()
     with open(log_dir / f"{task['tid']}.log", 'w') as log:
@@ -175,6 +183,8 @@ def run_task(task, worker, exp_dir):
         with LOCK:
             RUNNING[worker] = [opt]
         time.sleep(STARTUP_WAIT_S)
+        log.write('\nMAP: ' + ' '.join(map_cmd) + '\n\n')
+        log.flush()
         mp = subprocess.Popen(map_cmd, env=env, stdout=log, stderr=subprocess.STDOUT,
                               start_new_session=True)
         with LOCK:

@@ -33,7 +33,7 @@ class OptimizerNode(Node):
         # ==========================================
         # KORREKTUR: w_crlb und max_drone_dist entfernt; beide hatten keine Wirkung
         # (Schätzgüte geht ungewichtet ein, d_max ist in pso_algorithm.py festgelegt).
-        self.declare_parameter('w_move', 1.6)
+        self.declare_parameter('w_move', 1.0)   # festgelegt über Kontrollreihe K1
         self.declare_parameter('w_obs', 1.00)
         # KORREKTUR: sechs Einträge passend zur Ausgangsaufstellung (vorher wurden
         # zwei Roboter stillschweigend mit Typ A ergänzt)
@@ -54,6 +54,10 @@ class OptimizerNode(Node):
         # Ausgabedatei und Kennung des Laufs (für parallele Läufe und Wiederaufnahme)
         self.declare_parameter('csv_path', os.path.expanduser('~/map_ws/pso_evaluation_results.csv'))
         self.declare_parameter('task_id', '')
+        # NEU: Export der finalen Lösung. Ist ein Pfad gesetzt, schreibt der Knoten
+        # am Ende die Roboterpositionen je Formation in diese CSV-Datei und die
+        # Zuordnung der Drohnenposen zu den Formationen in <Name>_drohnen.csv.
+        self.declare_parameter('formation_export', '')
         # Ausgangsaufstellung der Roboter [x1, y1, x2, y2, ...] in m
         self.declare_parameter('start_robot_poses', [0.0, 0.0, 1.0, 0.0, 2.0, 0.0,
                                                      0.0, 1.0, 1.0, 1.0, 2.0, 1.0])
@@ -115,6 +119,7 @@ class OptimizerNode(Node):
         self.timer_period = float(self.get_parameter('timer_period').value)
         self.csv_path = os.path.expanduser(self.get_parameter('csv_path').value)
         self.task_id = str(self.get_parameter('task_id').value)
+        self.formation_export = os.path.expanduser(str(self.get_parameter('formation_export').value))
 
         # NEU: Flottengröße einmalig prüfen (vorher im SwarmOptimizer mit Absturz)
         n_robots = len(self.start_robot_poses) // 2
@@ -139,6 +144,7 @@ class OptimizerNode(Node):
         self.best_run_inter = 0.0
         self.best_run_formations = []
         self.best_run_group_sizes = []
+        self.best_run_clusters = []         # NEU: Drohnenposen je Gruppe der besten Lösung
         
         self.timer = None
 
@@ -405,6 +411,7 @@ class OptimizerNode(Node):
             else:
                 # Schalter ist AUS: Normales Verhalten für Vorführungen
                 self.optimization_done = True 
+                self.export_final_solution(self.current_k - 1, self.previous_total_cost)
                 self.plot_results() 
                 return
             # ===================================
@@ -443,6 +450,7 @@ class OptimizerNode(Node):
         self.best_run_inter = total_inter_cost
         self.best_run_formations = [[round(float(v), 4) for v in f] for f in formations]
         self.best_run_group_sizes = [len(c) for c in clusters]
+        self.best_run_clusters = [[[float(v) for v in d] for d in c] for c in clusters]
 
         self.current_k += 1
 
@@ -665,6 +673,41 @@ class OptimizerNode(Node):
 
 
 
+    def export_final_solution(self, final_k, final_cost):
+        """Schreibt die Roboterpositionen der finalen Lösung und die Zuordnung der
+        Drohnenposen zu den Formationen als CSV-Dateien."""
+        if not self.formation_export or not self.best_run_formations:
+            return
+        pfad = self.formation_export
+        os.makedirs(os.path.dirname(pfad) or '.', exist_ok=True)
+        stamm, endung = os.path.splitext(pfad)
+        pfad_drohnen = f"{stamm}_drohnen{endung or '.csv'}"
+
+        n_robots = len(self.start_robot_poses) // 2
+        types = list(self.optimizer.params.get('robot_types', []))
+        types = (types + ['A'] * n_robots)[:n_robots]
+        kopf = (f"# Szenario {self.target_name}, Task {self.task_id or '-'}, "
+                f"K = {final_k}, C_ges = {final_cost:.2f}, "
+                f"w_move = {self.get_parameter('w_move').value}, "
+                f"w_obs = {self.optimizer.params.get('w_obs')}\n")
+        try:
+            with open(pfad, 'w', encoding='utf-8') as fh:
+                fh.write(kopf)
+                fh.write("gruppe,roboter,typ,x,y,start_x,start_y\n")
+                for g, form in enumerate(self.best_run_formations, start=1):
+                    for i in range(n_robots):
+                        fh.write(f"{g},{i + 1},{types[i]},{form[2 * i]:.4f},{form[2 * i + 1]:.4f},"
+                                 f"{self.start_robot_poses[2 * i]:.4f},{self.start_robot_poses[2 * i + 1]:.4f}\n")
+            with open(pfad_drohnen, 'w', encoding='utf-8') as fh:
+                fh.write(kopf)
+                fh.write("gruppe,x,y,z,yaw\n")
+                for g, cluster in enumerate(self.best_run_clusters, start=1):
+                    for d in cluster:
+                        fh.write(f"{g},{d[0]:.4f},{d[1]:.4f},{d[2]:.4f},{d[5]:.4f}\n")
+            self.get_logger().info(f"Finale Lösung gespeichert: {pfad} und {pfad_drohnen}")
+        except OSError as e:
+            self.get_logger().error(f"Export der finalen Lösung fehlgeschlagen: {e}")
+
     def finish_run(self, final_k, final_cost, status='abbruchkriterium'):
         """Speichert die Daten des aktuellen Laufs inklusive k-Historie und triggert den nächsten."""
         
@@ -675,6 +718,10 @@ class OptimizerNode(Node):
         # NEU: Zeitgeber anhalten, damit kein weiterer Schritt mehr startet
         if self.timer is not None:
             self.timer.cancel()
+
+        # NEU: finale Lösung als CSV ausgeben (falls formation_export gesetzt)
+        if status != 'keine_loesung':
+            self.export_final_solution(final_k, final_cost)
         
         self.experiment_results.append({
             'task_id': self.task_id,

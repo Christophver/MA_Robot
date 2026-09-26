@@ -7,3 +7,4 @@ alt/
 __pycache__/
 src/mein_erstes_paket/
 src/multi_robot_sim/
+.vscode/

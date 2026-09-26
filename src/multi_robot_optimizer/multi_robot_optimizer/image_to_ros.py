@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import math
+import os
 import time
 
 # ROS 2 Imports
@@ -84,6 +85,61 @@ def draw_and_show():
     # Bild im Fenster aktualisieren
     cv2.imshow("Safety Check - Klicke zur Korrektur, druecke ENTER zum Bestaetigen", temp_img)
 
+# ==========================================
+# NEU: Eingabe von Drohnenposen aus einer Datei
+# ==========================================
+# Format (CSV, eine Pose je Zeile, Einheiten m bzw. rad):
+#     x, y, z[, yaw]
+# - Koordinaten im Kartenrahmen "map": Ursprung in der Bildmitte, x nach rechts,
+#   y nach oben (wie die erzeugten Posen und die Karte).
+# - yaw ist optional. Fehlt er, richtet sich die Drohne zum Mittelpunkt des
+#   Messobjekts aus. Der Gierwinkel beeinflusst die Optimierung nicht.
+# - Trennzeichen Komma oder Semikolon; Zeilen mit '#' und eine Kopfzeile
+#   (z. B. "x,y,z,yaw") werden übersprungen.
+def lade_drohnenposen(pfad, logger):
+    posen = []
+    with open(pfad, 'r', encoding='utf-8') as fh:
+        for nr, zeile in enumerate(fh, start=1):
+            zeile = zeile.split('#', 1)[0].strip()
+            if not zeile:
+                continue
+            teile = [t.strip() for t in zeile.replace(';', ',').split(',') if t.strip()]
+            try:
+                werte = [float(t) for t in teile]
+            except ValueError:
+                if nr == 1:
+                    continue          # Kopfzeile
+                logger.warn(f"Zeile {nr} in {pfad} nicht lesbar und übersprungen: {zeile}")
+                continue
+            if len(werte) not in (3, 4):
+                logger.warn(f"Zeile {nr}: 3 oder 4 Werte erwartet (x, y, z[, yaw]), übersprungen.")
+                continue
+            posen.append(werte)
+    return posen
+
+
+def pruefe_drohnenposen(posen, occupied, origin_x, origin_y, h, w, tcx, tcy, logger):
+    """Verwirft Posen außerhalb der Karte, in Hindernissen oder mit z <= 0 und
+    ergänzt fehlende Gierwinkel (Ausrichtung zum Messobjekt)."""
+    gueltig = []
+    for p in posen:
+        x, y, z = p[0], p[1], p[2]
+        ci = int(math.floor((y - origin_y) / PIXEL_TO_METER))
+        cj = int(math.floor((x - origin_x) / PIXEL_TO_METER))
+        if not (0 <= ci < h and 0 <= cj < w):
+            logger.warn(f"Pose ({x:.2f}, {y:.2f}, {z:.2f}) liegt außerhalb der Karte und entfällt.")
+            continue
+        if occupied[ci, cj]:
+            logger.warn(f"Pose ({x:.2f}, {y:.2f}, {z:.2f}) liegt in einem Hindernis und entfällt.")
+            continue
+        if z <= 0.0:
+            logger.warn(f"Pose ({x:.2f}, {y:.2f}, {z:.2f}) hat keine positive Höhe und entfällt.")
+            continue
+        yaw = p[3] if len(p) == 4 else math.atan2(tcy - y, tcx - x)
+        gueltig.append([x, y, z, yaw])
+    return gueltig
+
+
 def main(args=None):
     # ==========================================
     # 1. ROS 2 Node initialisieren (NUR EINMAL!)
@@ -96,9 +152,28 @@ def main(args=None):
     # ==========================================
     node.declare_parameter('scenario', 0)
     node.declare_parameter('custom_image_path', '/home/vboxuser/map_ws/Mein_Luftbild.png')
+    # NEU: Herkunft der Drohnenposen
+    #   'generiert' – Posen wie bisher an der Iso-Kontur erzeugen (Standard)
+    #   'datei'     – Posen aus der CSV-Datei 'drohnen_datei' laden
+    #   'extern'    – keine Posen senden; ein anderer Knoten sendet sie auf
+    #                 /drone_targets (geometry_msgs/PoseArray, frame "map")
+    node.declare_parameter('drohnen_quelle', 'generiert')
+    node.declare_parameter('drohnen_datei', '')
+    # NEU: optional die verwendeten Posen als CSV speichern (Vorlage/Kontrolle)
+    node.declare_parameter('drohnen_export', '')
 
     scenario_mode = node.get_parameter('scenario').value
     img_path = node.get_parameter('custom_image_path').value
+    drohnen_quelle = str(node.get_parameter('drohnen_quelle').value).strip().lower()
+    drohnen_datei = os.path.expanduser(str(node.get_parameter('drohnen_datei').value))
+    drohnen_export = os.path.expanduser(str(node.get_parameter('drohnen_export').value))
+    if drohnen_quelle not in ('generiert', 'datei', 'extern'):
+        node.get_logger().error(f"Unbekannte drohnen_quelle '{drohnen_quelle}' "
+                                "(erlaubt: generiert, datei, extern).")
+        return
+    if drohnen_quelle == 'datei' and not drohnen_datei:
+        node.get_logger().error("drohnen_quelle 'datei' benötigt den Parameter drohnen_datei.")
+        return
 
     # ==========================================
     # 3. BILDQUELLE WÄHLEN
@@ -216,8 +291,9 @@ def main(args=None):
     # Finale Drohnenanzahl (Dummys) berechnen
     num_drones = max(1, int(perimeter_meters / TARGET_RESOLUTION_M))
 
-    print(f"--> Gebäudeumfang: {perimeter_meters:.2f} m")
-    print(f"--> Adaptive Auflösung: {TARGET_RESOLUTION_M} m -> Generiere {num_drones} Dummy-Drohnen.")
+    if drohnen_quelle == 'generiert':
+        print(f"--> Gebäudeumfang: {perimeter_meters:.2f} m")
+        print(f"--> Adaptive Auflösung: {TARGET_RESOLUTION_M} m -> Generiere {num_drones} Dummy-Drohnen.")
     # ==========================================
 
     # Drohnen-Ring NUR um das Messobjekt berechnen
@@ -247,20 +323,39 @@ def main(args=None):
     valid_points = np.array(valid_points)
     drone_poses_list = []
 
+    # Mittelpunkt des Messobjekts (für die Ausrichtung der Drohnen)
+    x_box, y_box, bw, bh = cv2.boundingRect(contours[selected_target_idx])
+    tcx = ((x_box + bw/2.0) - center_x) * PIXEL_TO_METER
+    tcy = ((center_y) - (y_box + bh/2.0)) * PIXEL_TO_METER
+    occupied = flipped_grid > 0
+
+    if drohnen_quelle == 'datei':
+        # NEU: Posen aus Datei laden und prüfen
+        try:
+            roh = lade_drohnenposen(drohnen_datei, node.get_logger())
+        except OSError as e:
+            node.get_logger().error(f"Drohnendatei nicht lesbar: {e}")
+            return
+        drone_poses_list = pruefe_drohnenposen(roh, occupied, origin_x, origin_y, h, w,
+                                               tcx, tcy, node.get_logger())
+        print(f"--> {len(drone_poses_list)} von {len(roh)} Drohnenposen aus {drohnen_datei} übernommen.")
+        if not drone_poses_list:
+            node.get_logger().error("Keine gültige Drohnenpose in der Datei.")
+            return
+    elif drohnen_quelle == 'extern':
+        print("--> Drohnenposen kommen von einem anderen Knoten (/drone_targets).")
+
     # NEU: num_drones anstelle der festen 16 verwenden
-    if len(valid_points) >= num_drones:
+    if drohnen_quelle != 'generiert':
+        pass
+    elif len(valid_points) >= num_drones:
         kmeans = KMeans(n_clusters=num_drones, random_state=42, n_init=10).fit(valid_points)
         z_levels = [1.25, 3.75, 6.25, 8.75]
-        
-        x_box, y_box, bw, bh = cv2.boundingRect(contours[selected_target_idx])
-        tcx = ((x_box + bw/2.0) - center_x) * PIXEL_TO_METER
-        tcy = ((center_y) - (y_box + bh/2.0)) * PIXEL_TO_METER
 
         # KORREKTUR: Messsäulen, die in einem anderen Hindernis liegen, verwerfen.
         # Eine Drohne kann dort nicht fliegen, und jede Sichtlinie zu dieser Pose
         # wäre verdeckt. Die Pose wäre damit nie beobachtbar, und keine Gruppe mit
         # ihr könnte zulässig werden (Ursache für das Scheitern von Szenario 4).
-        occupied = flipped_grid > 0
         kept_centers = []
         for center in kmeans.cluster_centers_:
             ci = int(math.floor((center[1] - origin_y) / PIXEL_TO_METER))
@@ -280,9 +375,18 @@ def main(args=None):
         print(f"WARNUNG: Zielkontur zu klein für {num_drones} Drohnen!")
 
 
+    # NEU: verwendete Posen optional als CSV speichern
+    if drohnen_export and drone_poses_list:
+        with open(drohnen_export, 'w', encoding='utf-8') as fh:
+            fh.write("x,y,z,yaw\n")
+            for dp in drone_poses_list:
+                fh.write(f"{dp[0]:.4f},{dp[1]:.4f},{dp[2]:.4f},{dp[3]:.4f}\n")
+        print(f"--> {len(drone_poses_list)} Drohnenposen gespeichert in {drohnen_export}")
+
     # 9. Publisher einrichten und Topics senden
     map_pub = node.create_publisher(OccupancyGrid, '/map', 10)
     drone_pub = node.create_publisher(PoseArray, '/drone_targets', 10)
+    sende_drohnen = drohnen_quelle != 'extern'
 
     grid_msg = OccupancyGrid()
     grid_msg.header = Header(frame_id="map", stamp=node.get_clock().now().to_msg())
@@ -310,7 +414,8 @@ def main(args=None):
     # der Optimierungsknoten teils so langsam, dass er alle Nachrichten verpasste.
     for _ in range(20):
         map_pub.publish(grid_msg)
-        drone_pub.publish(pose_array_msg)
+        if sende_drohnen:
+            drone_pub.publish(pose_array_msg)
         time.sleep(0.5)
 
     print("✅ Übertragung erfolgreich abgeschlossen.")
