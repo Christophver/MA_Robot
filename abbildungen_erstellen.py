@@ -3,11 +3,11 @@
 """
 Erzeugt die Abbildungen der Masterarbeit ohne laufendes ROS-System.
 
-  images/karte_eingang.png, karte_kanten.png,      -> fig:karte_pipeline
-  images/karte_belegung.png, karte_distanzfeld.png
-  images/drohnenposen.png                          -> fig:drohnenposen
-  images/ergebnis_s1.png ... ergebnis_s4.png       -> fig:eval_ergebnisse
-  images/ergebnis_legende.png                      -> gemeinsame Legende dazu
+  abbildung/karte_eingang.png, karte_kanten.png,      -> fig:karte_pipeline
+  abbildung/karte_belegung.png, karte_distanzfeld.png
+  abbildung/drohnenposen.png                          -> fig:drohnenposen
+  abbildung/ergebnis_s1.png ... ergebnis_s4.png       -> fig:eval_ergebnisse
+  abbildung/ergebnis_legende.png                      -> gemeinsame Legende dazu
 
 Die Kartenkette und die Erzeugung der Drohnenposen sind 1:1 aus
 image_to_ros.py übernommen. Die Gruppierung entspricht optimizer_node.py
@@ -469,7 +469,7 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--nur", nargs="+", choices=["karte", "posen", "ergebnisse"],
                     default=["karte", "posen", "ergebnisse"])
-    ap.add_argument("--ausgabe", default="images", help="Zielordner (Standard: images)")
+    ap.add_argument("--ausgabe", default="abbildung", help="Zielordner (Standard: abbildung)")
     ap.add_argument("--format", default="png", choices=["png", "pdf"])
     ap.add_argument("--szenario-karte", type=int, default=4,
                     help="Szenario für die Kartenkette (Standard: 4)")
