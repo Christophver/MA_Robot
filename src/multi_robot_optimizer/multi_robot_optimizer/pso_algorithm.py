@@ -172,6 +172,7 @@ class SwarmOptimizer:
         c2 = self.params.get('c2', 1.5)             
         
 
+        stop_reason = 'max_iter'   # Protokoll für die Auswertung der Abbruchkriterien
         for iteration in range(max_iterations):
             improved = False
             
@@ -204,6 +205,8 @@ class SwarmOptimizer:
             if global_best_position is None:
                 # Der komplette Schwarm steckt im Hindernis fest. 
                 # Sofortiger Abbruch, Melde "Unmöglich" an den Hauptknoten!
+                print(f"PSO_STOP iterationen={iteration + 1} grund=kein_bestwert "
+                      f"partikel={num_particles}", flush=True)
                 return None, float('inf')
             
 
@@ -233,8 +236,13 @@ class SwarmOptimizer:
                 
             # Early Stopping
             if stagnation_counter >= patience:
+                stop_reason = 'stagnation'
                 break
         
+        # Eine Zeile je PSO-Aufruf (Gruppe) im Protokoll des Laufs; nur Ausgabe,
+        # ohne Einfluss auf das Ergebnis
+        print(f"PSO_STOP iterationen={iteration + 1} grund={stop_reason} "
+              f"partikel={num_particles} kosten={best_cost:.6g}", flush=True)
         return global_best_position, best_cost
     
     def _calculate_cost(self, formation, drone_cluster, use_minimax=False):

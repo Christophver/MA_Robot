@@ -21,7 +21,6 @@ Aufruf (im Terminal, in dem ~/map_ws/install/setup.bash geladen ist):
     python3 run_batch.py haupt typen flotte zeit    # 2. Hauptauswertung, Flotten, Rechenzeit
     python3 run_batch.py haupt --workers 3          # einzelne Reihe
     python3 run_batch.py typen --dry-run            # nur anzeigen, was laufen würde
-    python3 run_batch.py tpat tpat_eps tpat_s3      # Voruntersuchung V1 neu (über Nacht)
 Reihen mit fest eingestellter Anzahl an Arbeitssträngen (z. B. 'zeit' wegen
 der Rechenzeitmessung) ignorieren --workers.
 """
@@ -96,17 +95,6 @@ EXPERIMENTS = {
     # Rechenzeitmessung (Anforderung A7): immer ohne parallele Läufe
     'zeit':   dict(scenarios=[1], runs=5, w_move=[1.0], w_obs=[1.0], fleets=['N4', 'N6', 'N8'],
                    workers=1),
-    # Voruntersuchung V1 mit der aktuellen Fassung: Abbruchkriterien der PSO.
-    # t_pat = 15 und epsilon = 1e-4 sind die Werte der Hauptauswertung.
-    # 'interleave' ordnet die Läufe reihum nach Durchlauf, damit bei einem
-    # vorzeitigen Abbruch alle Stufen etwa gleich viele Läufe haben und alle
-    # Stufen unter derselben Parallellast rechnen.
-    'tpat':     dict(scenarios=[1], runs=30, w_move=[1.0], w_obs=[1.0], fleets=['N6'],
-                     t_pat=[5, 10, 15, 20, 30, 40], eps=[1e-4], interleave=True),
-    'tpat_eps': dict(scenarios=[1], runs=30, w_move=[1.0], w_obs=[1.0], fleets=['N6'],
-                     t_pat=[15], eps=[1e-2, 1e-3, 1e-5], interleave=True),
-    'tpat_s3':  dict(scenarios=[3], runs=30, w_move=[1.0], w_obs=[1.0], fleets=['N6'],
-                     t_pat=[5, 10, 15, 20, 30, 40], eps=[1e-4], interleave=True),
 }
 LOCK_FILE = OUT_DIR / '.run_batch.lock'
 
@@ -124,26 +112,14 @@ def fmt_float(v):
 def task_list(name):
     cfg = EXPERIMENTS[name]
     tasks = []
-    # t_pat und epsilon nur bei den Reihen zu den Abbruchkriterien; sonst gelten
-    # die Standardwerte des Knotens (keine Änderung der bisherigen Task_IDs)
-    tps = cfg.get('t_pat', [None])
-    epss = cfg.get('eps', [None])
     for sc in cfg['scenarios']:
         for fleet in cfg['fleets']:
             for wm in cfg['w_move']:
                 for wo in cfg['w_obs']:
-                    for tp in tps:
-                        for eps in epss:
-                            for r in range(1, cfg['runs'] + 1):
-                                tid = f"{name}_S{sc}_{fleet}_wm{wm}_wo{wo}"
-                                if tp is not None:
-                                    tid += f"_tp{tp}_eps{eps:g}"
-                                tid += f"_r{r:02d}"
-                                tasks.append(dict(tid=tid, sc=sc, fleet=fleet, wm=wm, wo=wo,
-                                                  run=r, tp=tp, eps=eps,
-                                                  drohnen_datei=cfg.get('drohnen_datei', '')))
-    if cfg.get('interleave'):
-        tasks.sort(key=lambda t: t['run'])   # stabil: reihum über alle Stufen
+                    for r in range(1, cfg['runs'] + 1):
+                        tid = f"{name}_S{sc}_{fleet}_wm{wm}_wo{wo}_r{r:02d}"
+                        tasks.append(dict(tid=tid, sc=sc, fleet=fleet, wm=wm, wo=wo, run=r,
+                                          drohnen_datei=cfg.get('drohnen_datei', '')))
     return tasks
 
 
@@ -190,14 +166,7 @@ def run_task(task, worker, exp_dir):
                '-p', f"start_robot_poses:=[{', '.join(fmt_float(v) for v in poses)}]",
                '-p', f"robot_types:=[{', '.join(repr(t) for t in types)}]",
                '-p', f"csv_path:={csv_path}",
-               '-p', f"task_id:={task['tid']}",
-               # Unter Volllast startet der Kartenknoten teils erst nach 45 s;
-               # die Standardfrist von 60 s reicht dann nicht (Status kein_csv_eintrag)
-               '-p', 'startup_timeout:=300.0']
-    if task.get('tp') is not None:
-        # t_patience ist im Knoten als Ganzzahl deklariert, epsilon als Gleitkommazahl
-        opt_cmd += ['-p', f"t_patience:={int(task['tp'])}",
-                    '-p', f"epsilon:={fmt_float(task['eps'])}"]
+               '-p', f"task_id:={task['tid']}"]
     map_cmd = ['ros2', 'run', 'multi_robot_optimizer', 'image_to_ros', '--ros-args',
                '-p', f"scenario:={int(task['sc'])}"]
     if task.get('drohnen_datei'):
