@@ -1,7 +1,9 @@
 build/
 install/
 log/
-ergebnisse/
+ergebnisse/*
+!ergebnisse/*_gesamt.csv
+!ergebnisse/abbildungen/
 alt/
 *.log
 __pycache__/
